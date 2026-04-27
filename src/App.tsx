@@ -56,8 +56,9 @@ function App() {
   }, [])
 
   const checkAdmin = (email?: string) => {
-    const adminEmails = import.meta.env.VITE_ADMIN_EMAILS?.split(',') || ['admin@finmgmt.local']
-    setIsAdmin(email ? adminEmails.includes(email) : false)
+    const envAdmins = import.meta.env.VITE_ADMIN_EMAILS?.split(',').map((e: string) => e.trim()).filter(Boolean) || []
+    const admins = envAdmins.length > 0 ? envAdmins : ['alnahash@gmail.com']
+    setIsAdmin(email ? admins.includes(email.toLowerCase()) : false)
   }
 
   if (loading) {
