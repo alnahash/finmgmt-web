@@ -117,11 +117,6 @@ export default function Budgets() {
     }
   }
 
-  const monthName = new Date(formData.year, formData.month - 1).toLocaleString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  })
-
   return (
     <Layout>
       <div className="max-w-6xl mx-auto px-4 py-8">

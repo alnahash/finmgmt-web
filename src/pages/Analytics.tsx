@@ -2,14 +2,8 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { TrendingUp } from 'lucide-react'
-
-interface Transaction {
-  amount: number
-  category_id: string
-  transaction_date: string
-}
 
 interface Category {
   id: string
@@ -22,7 +16,6 @@ export default function Analytics() {
   const { user } = useContext(AuthContext)
   const [pieData, setPieData] = useState<any[]>([])
   const [lineData, setLineData] = useState<any[]>([])
-  const [categories, setCategories] = useState<Map<string, Category>>(new Map())
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
     totalSpent: 0,
@@ -48,7 +41,6 @@ export default function Analytics() {
 
       const catMap = new Map()
       cats?.forEach((cat) => catMap.set(cat.id, cat))
-      setCategories(catMap)
 
       // Get current month
       const now = new Date()
@@ -175,7 +167,7 @@ export default function Analytics() {
                         fill="#8884d8"
                         dataKey="value"
                       >
-                        {pieData.map((entry, index) => (
+                        {pieData.map((_, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>

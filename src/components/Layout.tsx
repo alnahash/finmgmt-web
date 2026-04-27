@@ -9,7 +9,7 @@ interface LayoutProps {
 }
 
 export default function Layout({ children }: LayoutProps) {
-  const { user, isAdmin } = useContext(AuthContext)
+  const { isAdmin } = useContext(AuthContext)
   const location = useLocation()
   const navigate = useNavigate()
 
