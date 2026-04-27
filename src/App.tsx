@@ -41,9 +41,15 @@ function App() {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user || null)
       checkAdmin(session?.user?.email)
+      if (event === 'SIGNED_IN' && session?.user) {
+        supabase.from('login_events').insert({
+          user_id: session.user.id,
+          user_agent: navigator.userAgent,
+        }).then(() => {})
+      }
     })
 
     return () => subscription?.unsubscribe()
