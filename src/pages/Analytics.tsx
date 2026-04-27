@@ -5,13 +5,6 @@ import { supabase } from '../lib/supabase'
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { TrendingUp } from 'lucide-react'
 
-interface Category {
-  id: string
-  name: string
-  icon: string
-  color: string
-}
-
 export default function Analytics() {
   const { user } = useContext(AuthContext)
   const [pieData, setPieData] = useState<any[]>([])
