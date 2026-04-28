@@ -44,6 +44,7 @@ export default function Transactions() {
   const [pendingTransactions, setPendingTransactions] = useState<any[]>([])
   const [view, setView] = useState<'list' | 'card' | 'table' | 'calendar' | 'stats'>('list')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [userCurrency, setUserCurrency] = useState('BHD')
   const [deleting, setDeleting] = useState(false)
   const [deleteProgress, setDeleteProgress] = useState(0)
   const [deleteTotal, setDeleteTotal] = useState(0)
@@ -57,6 +58,14 @@ export default function Transactions() {
     setLoading(true)
 
     try {
+      // Fetch user currency preference
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('currency')
+        .eq('id', user.id)
+        .single()
+      if (profile?.currency) setUserCurrency(profile.currency)
+
       // Fetch categories
       const { data: cats } = await supabase
         .from('categories')
@@ -188,6 +197,14 @@ export default function Transactions() {
     setFilterCategory('')
     setSelectedIds(new Set())
   }
+
+  const formatAmount = (amount: number) =>
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: userCurrency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 3,
+    }).format(amount)
 
   const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds)
@@ -810,7 +827,7 @@ export default function Transactions() {
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
-                  <p className="text-white font-semibold text-lg">${t.amount.toFixed(2)}</p>
+                  <p className="text-white font-semibold text-lg">{formatAmount(t.amount)}</p>
                   <button
                     onClick={() => handleEdit(t)}
                     className="text-slate-400 hover:text-primary-500 transition"
@@ -846,7 +863,7 @@ export default function Transactions() {
                     </button>
                     <span className="text-3xl">{t.category_icon}</span>
                   </div>
-                  <p className="text-white font-bold text-lg">${t.amount.toFixed(2)}</p>
+                  <p className="text-white font-bold text-lg">{formatAmount(t.amount)}</p>
                 </div>
                 <p className="text-white font-medium mb-1">{t.category_name}</p>
                 {t.description && (
@@ -914,7 +931,7 @@ export default function Transactions() {
                       <td className="px-4 py-3 text-sm text-slate-300">{t.transaction_date}</td>
                       <td className="px-4 py-3 text-sm text-white">{t.category_icon} {t.category_name}</td>
                       <td className="px-4 py-3 text-sm text-slate-400">{t.description || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-right text-white font-semibold">${t.amount.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-sm text-right text-white font-semibold">{formatAmount(t.amount)}</td>
                       <td className="px-4 py-3 text-right space-x-2">
                         <button
                           onClick={() => handleEdit(t)}
@@ -967,7 +984,7 @@ export default function Transactions() {
                             )}
                           </div>
                         </div>
-                        <p className="text-white font-semibold">${t.amount.toFixed(2)}</p>
+                        <p className="text-white font-semibold">{formatAmount(t.amount)}</p>
                       </div>
                     ))}
                   </div>
@@ -983,15 +1000,15 @@ export default function Transactions() {
             </div>
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
               <p className="text-slate-400 text-xs uppercase tracking-wide mb-2">Total Spending</p>
-              <p className="text-3xl font-bold text-white">${filteredTransactions.reduce((sum, t) => sum + t.amount, 0).toFixed(2)}</p>
+              <p className="text-3xl font-bold text-white">{formatAmount(filteredTransactions.reduce((sum, t) => sum + t.amount, 0))}</p>
             </div>
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
               <p className="text-slate-400 text-xs uppercase tracking-wide mb-2">Average Transaction</p>
-              <p className="text-3xl font-bold text-white">${(filteredTransactions.reduce((sum, t) => sum + t.amount, 0) / filteredTransactions.length).toFixed(2)}</p>
+              <p className="text-3xl font-bold text-white">{formatAmount(filteredTransactions.reduce((sum, t) => sum + t.amount, 0) / filteredTransactions.length)}</p>
             </div>
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
               <p className="text-slate-400 text-xs uppercase tracking-wide mb-2">Highest Transaction</p>
-              <p className="text-3xl font-bold text-white">${Math.max(...filteredTransactions.map(t => t.amount)).toFixed(2)}</p>
+              <p className="text-3xl font-bold text-white">{formatAmount(Math.max(...filteredTransactions.map(t => t.amount)))}</p>
             </div>
 
             {/* Category Breakdown */}
@@ -1014,7 +1031,7 @@ export default function Transactions() {
                       <div key={cat}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-slate-300">{icon} {cat}</span>
-                          <span className="text-white font-semibold">${total.toFixed(2)} ({count})</span>
+                          <span className="text-white font-semibold">{formatAmount(total)} ({count})</span>
                         </div>
                         <div className="w-full bg-slate-700 rounded-full h-2">
                           <div
