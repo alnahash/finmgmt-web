@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { Plus, Trash2, Edit2, Filter, X, Upload } from 'lucide-react'
+import { Plus, Trash2, Edit2, Filter, X, Upload, Grid3x3, List as ListIcon, Table2, Calendar, BarChart3 } from 'lucide-react'
 
 interface Transaction {
   id: string
@@ -42,6 +42,7 @@ export default function Transactions() {
   const [showCurrencyModal, setShowCurrencyModal] = useState(false)
   const [currencyRates, setCurrencyRates] = useState({ USD: 1, AED: 1, BHD: 1 })
   const [pendingTransactions, setPendingTransactions] = useState<any[]>([])
+  const [view, setView] = useState<'list' | 'card' | 'table' | 'calendar' | 'stats'>('list')
 
   useEffect(() => {
     fetchData()
@@ -592,7 +593,58 @@ export default function Transactions() {
           )}
         </div>
 
-        {/* Transactions List */}
+        {/* View Toggle */}
+        {filteredTransactions.length > 0 && (
+          <div className="mb-6 flex gap-2 bg-slate-800 border border-slate-700 rounded-lg p-1 overflow-x-auto">
+            <button
+              onClick={() => setView('list')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition whitespace-nowrap ${
+                view === 'list' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <ListIcon className="w-4 h-4" />
+              List
+            </button>
+            <button
+              onClick={() => setView('card')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition whitespace-nowrap ${
+                view === 'card' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Grid3x3 className="w-4 h-4" />
+              Card
+            </button>
+            <button
+              onClick={() => setView('table')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition whitespace-nowrap ${
+                view === 'table' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Table2 className="w-4 h-4" />
+              Table
+            </button>
+            <button
+              onClick={() => setView('calendar')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition whitespace-nowrap ${
+                view === 'calendar' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              Calendar
+            </button>
+            <button
+              onClick={() => setView('stats')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition whitespace-nowrap ${
+                view === 'stats' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              Stats
+            </button>
+          </div>
+        )}
+
+        {/* Transactions Display */}
         {loading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
@@ -603,7 +655,8 @@ export default function Transactions() {
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
             <p className="text-slate-400">No transactions yet</p>
           </div>
-        ) : (
+        ) : view === 'list' ? (
+          /* List View */
           <div className="space-y-2">
             {filteredTransactions.map((t) => (
               <div key={t.id} className="bg-slate-800 border border-slate-700 rounded-lg p-4 flex items-center justify-between hover:border-primary-500 transition">
@@ -634,6 +687,170 @@ export default function Transactions() {
                 </div>
               </div>
             ))}
+          </div>
+        ) : view === 'card' ? (
+          /* Card View */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredTransactions.map((t) => (
+              <div key={t.id} className="bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-primary-500 transition">
+                <div className="flex items-start justify-between mb-3">
+                  <span className="text-3xl">{t.category_icon}</span>
+                  <p className="text-white font-bold text-lg">${t.amount.toFixed(2)}</p>
+                </div>
+                <p className="text-white font-medium mb-1">{t.category_name}</p>
+                {t.description && (
+                  <p className="text-slate-400 text-sm mb-2">{t.description}</p>
+                )}
+                <p className="text-slate-500 text-xs mb-3">{t.transaction_date}</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(t)}
+                    className="flex-1 text-slate-400 hover:text-primary-500 transition text-sm"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(t.id)}
+                    className="flex-1 text-slate-400 hover:text-red-500 transition text-sm"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : view === 'table' ? (
+          /* Table View */
+          <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-900 border-b border-slate-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Category</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Description</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Amount</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700">
+                  {filteredTransactions.map((t) => (
+                    <tr key={t.id} className="hover:bg-slate-700/50 transition">
+                      <td className="px-4 py-3 text-sm text-slate-300">{t.transaction_date}</td>
+                      <td className="px-4 py-3 text-sm text-white">{t.category_icon} {t.category_name}</td>
+                      <td className="px-4 py-3 text-sm text-slate-400">{t.description || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-right text-white font-semibold">${t.amount.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right space-x-2">
+                        <button
+                          onClick={() => handleEdit(t)}
+                          className="text-slate-400 hover:text-primary-500 transition"
+                        >
+                          <Edit2 className="w-4 h-4 inline" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(t.id)}
+                          className="text-slate-400 hover:text-red-500 transition"
+                        >
+                          <Trash2 className="w-4 h-4 inline" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : view === 'calendar' ? (
+          /* Calendar View */
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+            {Object.entries(
+              filteredTransactions.reduce((acc, t) => {
+                if (!acc[t.transaction_date]) acc[t.transaction_date] = []
+                acc[t.transaction_date].push(t)
+                return acc
+              }, {} as Record<string, Transaction[]>)
+            )
+              .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+              .map(([date, txns]) => (
+                <div key={date} className="mb-6 last:mb-0">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calendar className="w-5 h-5 text-primary-500" />
+                    <h3 className="text-lg font-semibold text-white">
+                      {new Date(date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    </h3>
+                    <span className="text-slate-500 text-sm ml-auto">{txns.length} transaction(s)</span>
+                  </div>
+                  <div className="space-y-2 pl-6 border-l-2 border-primary-500">
+                    {txns.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between p-3 bg-slate-700/50 rounded">
+                        <div className="flex items-center space-x-3 flex-1">
+                          <span className="text-xl">{t.category_icon}</span>
+                          <div>
+                            <p className="text-white font-medium">{t.category_name}</p>
+                            {t.description && (
+                              <p className="text-slate-400 text-sm">{t.description}</p>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-white font-semibold">${t.amount.toFixed(2)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+        ) : (
+          /* Stats View */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
+              <p className="text-slate-400 text-xs uppercase tracking-wide mb-2">Total Transactions</p>
+              <p className="text-3xl font-bold text-white">{filteredTransactions.length}</p>
+            </div>
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
+              <p className="text-slate-400 text-xs uppercase tracking-wide mb-2">Total Spending</p>
+              <p className="text-3xl font-bold text-white">${filteredTransactions.reduce((sum, t) => sum + t.amount, 0).toFixed(2)}</p>
+            </div>
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
+              <p className="text-slate-400 text-xs uppercase tracking-wide mb-2">Average Transaction</p>
+              <p className="text-3xl font-bold text-white">${(filteredTransactions.reduce((sum, t) => sum + t.amount, 0) / filteredTransactions.length).toFixed(2)}</p>
+            </div>
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-5">
+              <p className="text-slate-400 text-xs uppercase tracking-wide mb-2">Highest Transaction</p>
+              <p className="text-3xl font-bold text-white">${Math.max(...filteredTransactions.map(t => t.amount)).toFixed(2)}</p>
+            </div>
+
+            {/* Category Breakdown */}
+            <div className="lg:col-span-4 bg-slate-800 border border-slate-700 rounded-lg p-5">
+              <h3 className="text-lg font-semibold text-white mb-4">Spending by Category</h3>
+              <div className="space-y-3">
+                {Object.entries(
+                  filteredTransactions.reduce((acc, t) => {
+                    if (!acc[t.category_name]) acc[t.category_name] = { total: 0, icon: t.category_icon, count: 0 }
+                    acc[t.category_name].total += t.amount
+                    acc[t.category_name].count += 1
+                    return acc
+                  }, {} as Record<string, { total: number; icon: string; count: number }>)
+                )
+                  .sort(([, a], [, b]) => b.total - a.total)
+                  .map(([cat, { total, icon, count }]) => {
+                    const percentage = (total / filteredTransactions.reduce((sum, t) => sum + t.amount, 0)) * 100
+                    return (
+                      <div key={cat}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-slate-300">{icon} {cat}</span>
+                          <span className="text-white font-semibold">${total.toFixed(2)} ({count})</span>
+                        </div>
+                        <div className="w-full bg-slate-700 rounded-full h-2">
+                          <div
+                            className="bg-primary-500 h-2 rounded-full transition"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
+            </div>
           </div>
         )}
       </div>
