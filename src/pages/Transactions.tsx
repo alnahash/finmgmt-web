@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { Plus, Trash2, Edit2, Filter, X, Upload, Grid3x3, List as ListIcon, Table2, Calendar, BarChart3 } from 'lucide-react'
+import { Plus, Trash2, Edit2, Filter, X, Upload, Grid3x3, List as ListIcon, Table2, Calendar, BarChart3, CheckCircle2, Circle } from 'lucide-react'
 
 interface Transaction {
   id: string
@@ -43,6 +43,7 @@ export default function Transactions() {
   const [currencyRates, setCurrencyRates] = useState({ USD: 1, AED: 1, BHD: 1 })
   const [pendingTransactions, setPendingTransactions] = useState<any[]>([])
   const [view, setView] = useState<'list' | 'card' | 'table' | 'calendar' | 'stats'>('list')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchData()
@@ -182,6 +183,40 @@ export default function Transactions() {
     setFilterYear('')
     setFilterMonth('')
     setFilterCategory('')
+    setSelectedIds(new Set())
+  }
+
+  const toggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
+    } else {
+      newSelected.add(id)
+    }
+    setSelectedIds(newSelected)
+  }
+
+  const selectAll = () => {
+    setSelectedIds(new Set(filteredTransactions.map(t => t.id)))
+  }
+
+  const deselectAll = () => {
+    setSelectedIds(new Set())
+  }
+
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Delete ${selectedIds.size} transaction(s)?`)) return
+
+    try {
+      for (const id of selectedIds) {
+        await supabase.from('transactions').delete().eq('id', id).eq('user_id', user?.id)
+      }
+      setSelectedIds(new Set())
+      fetchData()
+    } catch (error) {
+      console.error('Error deleting transactions:', error)
+    }
   }
 
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -593,6 +628,36 @@ export default function Transactions() {
           )}
         </div>
 
+        {/* Selection Bar */}
+        {filteredTransactions.length > 0 && (
+          <div className="mb-6 bg-slate-800 border border-slate-700 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={selectedIds.size === filteredTransactions.length ? deselectAll : selectAll}
+                className="flex items-center space-x-2 px-3 py-2 hover:bg-slate-700 rounded-lg transition text-slate-300 hover:text-white"
+              >
+                {selectedIds.size === filteredTransactions.length ? (
+                  <CheckCircle2 className="w-5 h-5 text-primary-500" />
+                ) : (
+                  <Circle className="w-5 h-5" />
+                )}
+                <span className="text-sm font-medium">
+                  {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+                </span>
+              </button>
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={deleteSelected}
+                  className="flex items-center space-x-2 px-3 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-300 hover:text-red-200 rounded-lg transition text-sm font-medium"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete selected</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* View Toggle */}
         {filteredTransactions.length > 0 && (
           <div className="mb-6 flex gap-2 bg-slate-800 border border-slate-700 rounded-lg p-1 overflow-x-auto">
@@ -659,8 +724,18 @@ export default function Transactions() {
           /* List View */
           <div className="space-y-2">
             {filteredTransactions.map((t) => (
-              <div key={t.id} className="bg-slate-800 border border-slate-700 rounded-lg p-4 flex items-center justify-between hover:border-primary-500 transition">
+              <div key={t.id} className={`bg-slate-800 border rounded-lg p-4 flex items-center justify-between hover:border-primary-500 transition ${selectedIds.has(t.id) ? 'border-primary-500 bg-primary-950' : 'border-slate-700'}`}>
                 <div className="flex items-center space-x-4 flex-1">
+                  <button
+                    onClick={() => toggleSelect(t.id)}
+                    className="text-slate-400 hover:text-primary-500 transition flex-shrink-0"
+                  >
+                    {selectedIds.has(t.id) ? (
+                      <CheckCircle2 className="w-5 h-5 text-primary-500" />
+                    ) : (
+                      <Circle className="w-5 h-5" />
+                    )}
+                  </button>
                   <span className="text-2xl">{t.category_icon}</span>
                   <div>
                     <p className="text-white font-medium">{t.category_name}</p>
@@ -692,9 +767,21 @@ export default function Transactions() {
           /* Card View */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredTransactions.map((t) => (
-              <div key={t.id} className="bg-slate-800 border border-slate-700 rounded-lg p-4 hover:border-primary-500 transition">
+              <div key={t.id} className={`border rounded-lg p-4 hover:border-primary-500 transition ${selectedIds.has(t.id) ? 'border-primary-500 bg-primary-950' : 'border-slate-700 bg-slate-800'}`}>
                 <div className="flex items-start justify-between mb-3">
-                  <span className="text-3xl">{t.category_icon}</span>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => toggleSelect(t.id)}
+                      className="text-slate-400 hover:text-primary-500 transition"
+                    >
+                      {selectedIds.has(t.id) ? (
+                        <CheckCircle2 className="w-5 h-5 text-primary-500" />
+                      ) : (
+                        <Circle className="w-5 h-5" />
+                      )}
+                    </button>
+                    <span className="text-3xl">{t.category_icon}</span>
+                  </div>
                   <p className="text-white font-bold text-lg">${t.amount.toFixed(2)}</p>
                 </div>
                 <p className="text-white font-medium mb-1">{t.category_name}</p>
@@ -726,6 +813,18 @@ export default function Transactions() {
               <table className="w-full">
                 <thead className="bg-slate-900 border-b border-slate-700">
                   <tr>
+                    <th className="px-4 py-3 text-center">
+                      <button
+                        onClick={selectedIds.size === filteredTransactions.length ? deselectAll : selectAll}
+                        className="text-slate-400 hover:text-primary-500 transition"
+                      >
+                        {selectedIds.size === filteredTransactions.length ? (
+                          <CheckCircle2 className="w-5 h-5 text-primary-500 inline" />
+                        ) : (
+                          <Circle className="w-5 h-5 inline" />
+                        )}
+                      </button>
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Date</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Category</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Description</th>
@@ -735,7 +834,19 @@ export default function Transactions() {
                 </thead>
                 <tbody className="divide-y divide-slate-700">
                   {filteredTransactions.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-700/50 transition">
+                    <tr key={t.id} className={`transition ${selectedIds.has(t.id) ? 'bg-primary-950/30' : 'hover:bg-slate-700/50'}`}>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => toggleSelect(t.id)}
+                          className="text-slate-400 hover:text-primary-500 transition"
+                        >
+                          {selectedIds.has(t.id) ? (
+                            <CheckCircle2 className="w-4 h-4 text-primary-500 inline" />
+                          ) : (
+                            <Circle className="w-4 h-4 inline" />
+                          )}
+                        </button>
+                      </td>
                       <td className="px-4 py-3 text-sm text-slate-300">{t.transaction_date}</td>
                       <td className="px-4 py-3 text-sm text-white">{t.category_icon} {t.category_name}</td>
                       <td className="px-4 py-3 text-sm text-slate-400">{t.description || '-'}</td>
