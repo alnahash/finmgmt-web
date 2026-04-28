@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { Plus, Trash2, Edit2, Filter, X } from 'lucide-react'
+import { Plus, Trash2, Edit2, Filter, X, Upload } from 'lucide-react'
 
 interface Transaction {
   id: string
@@ -38,6 +38,7 @@ export default function Transactions() {
   const [filterYear, setFilterYear] = useState('')
   const [filterMonth, setFilterMonth] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
+  const [importing, setImporting] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -179,18 +180,137 @@ export default function Transactions() {
     setFilterCategory('')
   }
 
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+
+    setImporting(true)
+    try {
+      const text = await file.text()
+      const lines = text.trim().split('\n')
+
+      if (lines.length < 2) {
+        alert('CSV file is empty')
+        return
+      }
+
+      // Parse header
+      const header = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
+      const dateIdx = header.findIndex(h => h.toLowerCase() === 'date')
+      const amountIdx = header.findIndex(h => h.toLowerCase() === 'amount')
+      const descIdx = header.findIndex(h => h.toLowerCase() === 'description')
+      const catIdx = header.findIndex(h => h.toLowerCase() === 'category')
+
+      if (dateIdx === -1 || amountIdx === -1 || descIdx === -1) {
+        alert('CSV must have Date, Amount, and Description columns')
+        return
+      }
+
+      // Parse transactions
+      const txns = []
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue
+
+        // Simple CSV parse (handles quoted fields)
+        const cells = lines[i].split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
+          .map(c => c.trim().replace(/^"|"$/g, ''))
+
+        const dateStr = cells[dateIdx]
+        const amountStr = cells[amountIdx]
+        const desc = cells[descIdx]
+        const cat = catIdx !== -1 ? cells[catIdx] : null
+
+        // Parse date (supports DD/MM/YYYY or YYYY-MM-DD)
+        let date = new Date()
+        if (dateStr.includes('/')) {
+          const [d, m, y] = dateStr.split('/')
+          date = new Date(`${y}-${m}-${d}`)
+        } else {
+          date = new Date(dateStr)
+        }
+
+        const amount = parseFloat(amountStr)
+        if (isNaN(amount) || !desc) continue
+
+        // Find matching category or use first category
+        let categoryId = null
+        if (cat) {
+          const matching = categories.get(
+            Array.from(categories.values()).find(
+              c => c.name.toLowerCase().includes(cat.toLowerCase())
+            )?.id || ''
+          )
+          if (matching) categoryId = matching.id
+        }
+
+        // Use first category if none found
+        if (!categoryId) {
+          const first = categories.values().next().value
+          categoryId = first?.id
+        }
+
+        if (!categoryId) {
+          alert('No categories found. Please create a category first.')
+          return
+        }
+
+        txns.push({
+          user_id: user.id,
+          amount: Math.abs(amount),
+          description: desc,
+          category_id: categoryId,
+          transaction_date: date.toISOString().split('T')[0],
+        })
+      }
+
+      if (txns.length === 0) {
+        alert('No valid transactions found in CSV')
+        return
+      }
+
+      // Insert in batches of 100
+      for (let i = 0; i < txns.length; i += 100) {
+        const batch = txns.slice(i, i + 100)
+        const { error } = await supabase.from('transactions').insert(batch)
+        if (error) throw error
+      }
+
+      alert(`Successfully imported ${txns.length} transactions!`)
+      fetchData()
+    } catch (error) {
+      console.error('Error importing CSV:', error)
+      alert('Error importing CSV. Please check the file format.')
+    } finally {
+      setImporting(false)
+      e.target.value = ''
+    }
+  }
+
   return (
     <Layout>
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-white">Transactions</h1>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Add Transaction</span>
-          </button>
+          <div className="flex gap-2">
+            <label className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg transition text-sm cursor-pointer">
+              <Upload className="w-4 h-4" />
+              {importing ? 'Importing...' : 'Import CSV'}
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleImportCSV}
+                disabled={importing}
+                className="hidden"
+              />
+            </label>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Add Transaction</span>
+            </button>
+          </div>
         </div>
 
         {/* Form */}
