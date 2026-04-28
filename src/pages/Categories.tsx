@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { Plus, Trash2, Edit2, ChevronRight, LayoutGrid, List, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, Edit2, ChevronRight, LayoutGrid, List, ChevronDown, ChevronUp, Download, Upload } from 'lucide-react'
 
 type Frequency = 'one_off' | 'weekly' | 'monthly' | 'yearly' | 'dynamic'
 
@@ -121,6 +121,7 @@ export default function Categories() {
   const [iconSearch, setIconSearch] = useState('')
   const [subCategories, setSubCategories] = useState<typeof emptySubCategory[]>([])
   const [openIconDropdown, setOpenIconDropdown] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
 
   const filteredIcons = iconSearch.trim() === ''
     ? DEFAULT_EMOJIS
@@ -342,6 +343,76 @@ export default function Categories() {
     setExpandedParents(new Set())
   }
 
+  const handleExport = () => {
+    const exportData = categories.map(cat => ({
+      name: cat.name,
+      icon: cat.icon,
+      color: cat.color,
+      type: cat.type,
+      parent_id: cat.parent_id,
+      frequency: cat.frequency,
+    }))
+    const json = JSON.stringify(exportData, null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `categories-export-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+
+    setImporting(true)
+    try {
+      const text = await file.text()
+      const importedData = JSON.parse(text)
+
+      if (!Array.isArray(importedData)) {
+        alert('Invalid file format. Expected an array of categories.')
+        return
+      }
+
+      const validData = importedData.filter(
+        cat => cat.name && cat.type && (cat.type === 'expense' || cat.type === 'income')
+      )
+
+      if (validData.length === 0) {
+        alert('No valid categories found in the file.')
+        return
+      }
+
+      // Insert categories
+      const { error } = await supabase.from('categories').insert(
+        validData.map(cat => ({
+          user_id: user.id,
+          name: cat.name,
+          icon: cat.icon || '📁',
+          color: cat.color || '#f97316',
+          type: cat.type,
+          parent_id: cat.parent_id || null,
+          frequency: cat.frequency || null,
+          archived: false,
+        }))
+      )
+
+      if (error) throw error
+      alert(`Successfully imported ${validData.length} categories!`)
+      fetchCategories()
+    } catch (error) {
+      console.error('Error importing categories:', error)
+      alert('Error importing categories. Please check the file format.')
+    } finally {
+      setImporting(false)
+      e.target.value = ''
+    }
+  }
+
   return (
     <Layout>
       <div className="max-w-5xl mx-auto px-4 py-8">
@@ -385,6 +456,30 @@ export default function Categories() {
                 </button>
               </div>
             )}
+
+            {/* Import/Export buttons */}
+            <div className="flex gap-2">
+              <button
+                onClick={handleExport}
+                disabled={categories.length === 0}
+                title="Export categories to JSON"
+                className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg transition text-sm"
+              >
+                <Download className="w-4 h-4" />
+                Export
+              </button>
+              <label className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg transition text-sm cursor-pointer">
+                <Upload className="w-4 h-4" />
+                {importing ? 'Importing...' : 'Import'}
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImport}
+                  disabled={importing}
+                  className="hidden"
+                />
+              </label>
+            </div>
 
             <button
               onClick={() => { setShowForm(!showForm); if (showForm) cancelForm() }}
