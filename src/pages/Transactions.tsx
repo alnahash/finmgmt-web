@@ -825,7 +825,8 @@ export default function Transactions() {
               <div className="space-y-3">
                 {Object.entries(
                   filteredTransactions.reduce((acc, t) => {
-                    if (!acc[t.category_name]) acc[t.category_name] = { total: 0, icon: t.category_icon, count: 0 }
+                    if (!t.category_name) return acc
+                    if (!acc[t.category_name]) acc[t.category_name] = { total: 0, icon: t.category_icon || '', count: 0 }
                     acc[t.category_name].total += t.amount
                     acc[t.category_name].count += 1
                     return acc
