@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { Plus, Trash2, Edit2, ChevronRight, LayoutGrid, List } from 'lucide-react'
+import { Plus, Trash2, Edit2, ChevronRight, LayoutGrid, List, ChevronDown, ChevronUp } from 'lucide-react'
 
 type Frequency = 'one_off' | 'weekly' | 'monthly' | 'yearly' | 'dynamic'
 
@@ -17,7 +17,60 @@ interface Category {
   archived: boolean
 }
 
-const DEFAULT_EMOJIS = ['🍔', '🚗', '🎬', '🏠', '👕', '💊', '⚽', '📚', '✈️', '💇', '🛒', '🎁']
+const DEFAULT_EMOJIS = [
+  // Food & Dining
+  '🍔', '🍕', '🍜', '☕', '🍴', '🍱', '🥘', '🍛', '🥗', '🧁',
+  // Transportation
+  '🚗', '🚕', '🚌', '✈️', '🚂', '🚢', '⛽', '🛴', '🏍️', '🚲',
+  // Housing & Utilities
+  '🏠', '🏡', '🏢', '💡', '💧', '🔥', '📱', '📺', '🌐', '🔧',
+  // Health & Personal Care
+  '💊', '🏥', '💇', '💄', '🧴', '🧼', '🛁', '💅', '🧘', '🏋️',
+  // Shopping & Retail
+  '🛒', '👕', '👟', '👔', '👜', '💍', '⌚', '👓', '🧥', '🧢',
+  // Entertainment
+  '🎬', '🎮', '🎵', '🎤', '🎪', '🎨', '🎭', '🎯', '🎳', '🃏',
+  // Education & Books
+  '📚', '🎓', '📖', '✏️', '🖊️', '📝', '📐', '🔬', '🔭', '🧮',
+  // Family & Personal
+  '👨‍👩‍👧‍👦', '🎁', '🎂', '🎉', '💐', '💝', '👶', '👴', '👵', '🐕',
+  // Work & Business
+  '💼', '💻', '📊', '📈', '💰', '💸', '💳', '🏦', '📱', '⌨️',
+  // Wellness & Recreation
+  '⚽', '🏊', '🧗', '🚴', '🏃', '🧘', '🛀', '🏖️', '⛺', '🎿',
+  // Miscellaneous
+  '🌱', '🌺', '🌸', '🌻', '🎀', '🔔', '🎧', '📷', '🎥', '🗂️'
+]
+
+const ICON_KEYWORDS: { [key: string]: string } = {
+  '🍔': 'food burger hamburger', '🍕': 'food pizza', '🍜': 'food noodles ramen', '☕': 'coffee drink beverage',
+  '🍴': 'utensils fork spoon dining', '🍱': 'food bento box', '🥘': 'food cooking', '🍛': 'food curry',
+  '🥗': 'salad food healthy', '🧁': 'cupcake cake dessert', '🚗': 'car vehicle transport', '🚕': 'taxi car ride',
+  '🚌': 'bus transport vehicle', '✈️': 'airplane flight travel', '🚂': 'train transport', '🚢': 'ship boat travel',
+  '⛽': 'gas fuel petrol', '🛴': 'scooter transport', '🏍️': 'motorcycle bike', '🚲': 'bicycle bike',
+  '🏠': 'house home housing', '🏡': 'house home building', '🏢': 'building office', '💡': 'electricity light bulb',
+  '💧': 'water utilities', '🔥': 'fire heat', '📱': 'phone mobile', '📺': 'television tv', '🌐': 'internet network globe',
+  '🔧': 'tools maintenance repair', '💊': 'medicine health pill', '🏥': 'hospital health medical', '💇': 'haircut salon',
+  '💄': 'makeup beauty cosmetics', '🧴': 'cleaning supplies', '🧼': 'soap wash clean', '🛁': 'shower bath',
+  '💅': 'nails manicure beauty', '🧘': 'yoga wellness meditation', '🏋️': 'gym fitness exercise workout',
+  '🛒': 'shopping cart retail', '👕': 'clothes shirt fashion', '👟': 'shoes sneakers', '👔': 'suit dress clothes',
+  '👜': 'bag purse fashion', '💍': 'jewelry ring', '⌚': 'watch time', '👓': 'glasses eyewear',
+  '🧥': 'jacket coat clothes', '🧢': 'cap hat clothes', '🎬': 'movies film entertainment', '🎮': 'games gaming video game',
+  '🎵': 'music sound audio', '🎤': 'microphone music sing', '🎪': 'circus entertainment', '🎨': 'art painting creativity',
+  '🎭': 'theater drama performance', '🎯': 'target goal aim', '🎳': 'bowling sport', '🃏': 'cards game',
+  '📚': 'books reading education', '🎓': 'graduation school education', '📖': 'book reading', '✏️': 'pencil writing',
+  '🖊️': 'pen writing stationery', '📝': 'notes writing document', '📐': 'ruler mathematics', '🔬': 'science lab research',
+  '🔭': 'telescope science', '🧮': 'abacus math counting', '👨‍👩‍👧‍👦': 'family people', '🎁': 'gift present', '🎂': 'birthday cake',
+  '🎉': 'celebration party', '💐': 'flowers gift', '💝': 'gift love heart', '👶': 'baby infant', '👴': 'elderly man',
+  '👵': 'elderly woman', '🐕': 'dog pet animal', '💼': 'briefcase work business', '💻': 'computer laptop work',
+  '📊': 'chart graph data analytics', '📈': 'growth chart business', '💰': 'money cash finance', '💸': 'money spending',
+  '💳': 'credit card payment', '🏦': 'bank finance building', '⌨️': 'keyboard computer', '⚽': 'soccer sports football',
+  '🏊': 'swimming sports water', '🧗': 'climbing sport adventure', '🚴': 'cycling bike sport', '🏃': 'running exercise',
+  '🛀': 'bath shower hygiene', '🏖️': 'beach vacation travel', '⛺': 'camping tent outdoor', '🎿': 'skiing sport',
+  '🌱': 'plants nature garden', '🌺': 'flower hibiscus', '🌸': 'flower cherry blossom', '🌻': 'sunflower flower',
+  '🎀': 'ribbon bow gift', '🔔': 'bell notification', '🎧': 'headphones music audio', '📷': 'camera photo',
+  '🎥': 'video camera recording', '🗂️': 'file folder organization'
+}
 
 const FREQUENCY_OPTIONS: { value: Frequency; label: string; color: string }[] = [
   { value: 'one_off',  label: 'One Off',  color: 'bg-slate-600 text-slate-200' },
@@ -47,6 +100,14 @@ const emptyForm = {
   frequency: null as Frequency | null,
 }
 
+const emptySubCategory = {
+  tempId: '',
+  name: '',
+  icon: '📁',
+  color: '#f97316',
+  frequency: null as Frequency | null,
+}
+
 export default function Categories() {
   const { user } = useContext(AuthContext)
   const [categories, setCategories] = useState<Category[]>([])
@@ -54,7 +115,18 @@ export default function Categories() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState(emptyForm)
-  const [view, setView] = useState<'card' | 'list'>('card')
+  const [view, setView] = useState<'card' | 'list'>('list')
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set())
+  const [iconDropdownOpen, setIconDropdownOpen] = useState(false)
+  const [iconSearch, setIconSearch] = useState('')
+  const [subCategories, setSubCategories] = useState<typeof emptySubCategory[]>([])
+  const [openIconDropdown, setOpenIconDropdown] = useState<string | null>(null)
+
+  const filteredIcons = iconSearch.trim() === ''
+    ? DEFAULT_EMOJIS
+    : DEFAULT_EMOJIS.filter(emoji =>
+        ICON_KEYWORDS[emoji]?.toLowerCase().includes(iconSearch.toLowerCase())
+      )
 
   useEffect(() => { fetchCategories() }, [user])
 
@@ -81,7 +153,7 @@ export default function Categories() {
     e.preventDefault()
     if (!user || !formData.name) return
     try {
-      const payload = {
+      const mainPayload = {
         name: formData.name,
         icon: formData.icon,
         color: formData.color,
@@ -89,12 +161,35 @@ export default function Categories() {
         parent_id: formData.parent_id || null,
         frequency: formData.frequency || null,
       }
+
+      let mainCategoryId = editingId
+
       if (editingId) {
-        await supabase.from('categories').update(payload).eq('id', editingId).eq('user_id', user.id)
+        await supabase.from('categories').update(mainPayload).eq('id', editingId).eq('user_id', user.id)
       } else {
-        await supabase.from('categories').insert([{ user_id: user.id, ...payload }])
+        const { data } = await supabase
+          .from('categories')
+          .insert([{ user_id: user.id, ...mainPayload }])
+          .select()
+        mainCategoryId = data?.[0]?.id
       }
+
+      // Add sub-categories if any
+      if (!editingId && subCategories.length > 0 && mainCategoryId) {
+        const subCategoryPayloads = subCategories.map(sub => ({
+          user_id: user.id,
+          name: sub.name,
+          icon: sub.icon,
+          color: sub.color,
+          type: formData.type,
+          parent_id: mainCategoryId,
+          frequency: sub.frequency || null,
+        }))
+        await supabase.from('categories').insert(subCategoryPayloads)
+      }
+
       setFormData(emptyForm)
+      setSubCategories([])
       setEditingId(null)
       setShowForm(false)
       fetchCategories()
@@ -130,6 +225,7 @@ export default function Categories() {
     setShowForm(false)
     setEditingId(null)
     setFormData(emptyForm)
+    setSubCategories([])
   }
 
   // Build hierarchy: parents first, children nested under them
@@ -180,12 +276,32 @@ export default function Categories() {
 
   const renderListRow = (cat: Category, isChild = false) => {
     const children = childrenOf(cat.id)
+    const hasChildren = children.length > 0
+    const isExpanded = expandedParents.has(cat.id)
+
+    const toggleExpanded = () => {
+      const newExpanded = new Set(expandedParents)
+      if (newExpanded.has(cat.id)) {
+        newExpanded.delete(cat.id)
+      } else {
+        newExpanded.add(cat.id)
+      }
+      setExpandedParents(newExpanded)
+    }
+
     return (
       <div key={cat.id}>
         <div className={`flex items-center justify-between px-4 py-3 border-b border-slate-700 hover:bg-slate-700/40 transition ${isChild ? 'bg-slate-800/50' : ''}`}>
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            {isChild && <span className="w-4 shrink-0" />}
-            {isChild && <ChevronRight className="w-4 h-4 text-slate-500 shrink-0 -ml-4" />}
+            {hasChildren && (
+              <button
+                onClick={toggleExpanded}
+                className="text-slate-400 hover:text-white transition shrink-0 w-4 h-4 flex items-center justify-center"
+              >
+                <ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+              </button>
+            )}
+            {!hasChildren && <span className="w-4 shrink-0" />}
             <span
               className="w-2 h-2 rounded-full shrink-0"
               style={{ backgroundColor: cat.color }}
@@ -209,13 +325,22 @@ export default function Categories() {
             </div>
           </div>
         </div>
-        {children.map(child => renderListRow(child, true))}
+        {isExpanded && children.map(child => renderListRow(child, true))}
       </div>
     )
   }
 
   const expenseParents = parents.filter(c => c.type === 'expense')
   const incomeParents = parents.filter(c => c.type === 'income')
+
+  const expandAll = () => {
+    const parentIds = parents.map(p => p.id)
+    setExpandedParents(new Set(parentIds))
+  }
+
+  const collapseAll = () => {
+    setExpandedParents(new Set())
+  }
 
   return (
     <Layout>
@@ -240,6 +365,27 @@ export default function Categories() {
                 List
               </button>
             </div>
+
+            {/* Expand/Collapse buttons (list view only) */}
+            {view === 'list' && categories.length > 0 && (
+              <div className="flex bg-slate-800 border border-slate-700 rounded-lg p-1">
+                <button
+                  onClick={expandAll}
+                  title="Expand all categories"
+                  className="text-slate-400 hover:text-white transition p-1.5"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={collapseAll}
+                  title="Collapse all categories"
+                  className="text-slate-400 hover:text-white transition p-1.5"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             <button
               onClick={() => { setShowForm(!showForm); if (showForm) cancelForm() }}
               className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition"
@@ -324,17 +470,53 @@ export default function Categories() {
               {/* Icon */}
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-300 mb-2">Icon</label>
-                <div className="flex flex-wrap gap-2">
-                  {DEFAULT_EMOJIS.map(emoji => (
-                    <button
-                      key={emoji}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, icon: emoji })}
-                      className={`text-2xl p-2 rounded transition ${formData.icon === emoji ? 'bg-primary-600' : 'bg-slate-700 hover:bg-slate-600'}`}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIconDropdownOpen(!iconDropdownOpen)
+                      if (iconDropdownOpen) setIconSearch('')
+                    }}
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500 flex items-center justify-between"
+                  >
+                    <span className="text-lg">{formData.icon}</span>
+                    <span className="text-slate-400">▼</span>
+                  </button>
+                  {iconDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 border border-slate-600 rounded-lg z-10">
+                      <div className="p-2 border-b border-slate-600">
+                        <input
+                          type="text"
+                          placeholder="Search icons..."
+                          value={iconSearch}
+                          onChange={(e) => setIconSearch(e.target.value)}
+                          className="w-full px-2 py-1 bg-slate-800 border border-slate-600 rounded text-white text-sm placeholder-slate-500 focus:outline-none focus:border-primary-500"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="p-2 grid grid-cols-8 gap-1 max-h-64 overflow-y-auto">
+                        {filteredIcons.length > 0 ? (
+                          filteredIcons.map(emoji => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => {
+                                setFormData({ ...formData, icon: emoji })
+                                setIconDropdownOpen(false)
+                                setIconSearch('')
+                              }}
+                              className={`text-xl p-2 rounded transition ${formData.icon === emoji ? 'bg-primary-600' : 'bg-slate-800 hover:bg-slate-600'}`}
+                              title={ICON_KEYWORDS[emoji] || emoji}
+                            >
+                              {emoji}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="col-span-8 text-center py-4 text-slate-400 text-sm">No icons found</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -348,6 +530,121 @@ export default function Categories() {
                   className="w-full h-10 rounded-lg cursor-pointer"
                 />
               </div>
+
+              {/* Sub-categories section (only when creating new main category) */}
+              {!editingId && (
+                <div className="md:col-span-2">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-slate-300">
+                      Sub-categories <span className="text-slate-500">(optional)</span>
+                    </label>
+                    {formData.parent_id === null && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const tempId = Date.now().toString()
+                          setSubCategories([...subCategories, { ...emptySubCategory, tempId }])
+                        }}
+                        className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded transition"
+                      >
+                        + Add Sub-category
+                      </button>
+                    )}
+                  </div>
+
+                  {subCategories.length > 0 && (
+                    <div className="space-y-3 bg-slate-700/30 border border-slate-700 rounded-lg p-3 mb-4">
+                      {subCategories.map((sub, idx) => (
+                        <div key={sub.tempId} className="bg-slate-800 border border-slate-600 rounded-lg p-3 space-y-2">
+                          <div className="grid grid-cols-3 gap-2">
+                            {/* Sub-category name */}
+                            <input
+                              type="text"
+                              value={sub.name}
+                              onChange={e => {
+                                const updated = [...subCategories]
+                                updated[idx].name = e.target.value
+                                setSubCategories(updated)
+                              }}
+                              placeholder="Sub-category name"
+                              className="px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm placeholder-slate-500 focus:outline-none focus:border-primary-500"
+                            />
+
+                            {/* Sub-category icon */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() => setOpenIconDropdown(openIconDropdown === sub.tempId ? null : sub.tempId)}
+                                className="w-full px-2 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-primary-500 flex items-center justify-between"
+                              >
+                                <span className="text-lg">{sub.icon}</span>
+                                <span className="text-xs">▼</span>
+                              </button>
+                              {openIconDropdown === sub.tempId && (
+                                <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 border border-slate-600 rounded-lg z-10">
+                                  <div className="p-2 grid grid-cols-6 gap-1 max-h-40 overflow-y-auto">
+                                    {DEFAULT_EMOJIS.map(emoji => (
+                                      <button
+                                        key={emoji}
+                                        type="button"
+                                        onClick={() => {
+                                          const updated = [...subCategories]
+                                          updated[idx].icon = emoji
+                                          setSubCategories(updated)
+                                          setOpenIconDropdown(null)
+                                        }}
+                                        className={`text-lg p-1 rounded transition ${sub.icon === emoji ? 'bg-primary-600' : 'bg-slate-800 hover:bg-slate-600'}`}
+                                      >
+                                        {emoji}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Sub-category color */}
+                            <input
+                              type="color"
+                              value={sub.color}
+                              onChange={e => {
+                                const updated = [...subCategories]
+                                updated[idx].color = e.target.value
+                                setSubCategories(updated)
+                              }}
+                              className="w-full h-8 rounded-lg cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={sub.frequency || ''}
+                              onChange={e => {
+                                const updated = [...subCategories]
+                                updated[idx].frequency = (e.target.value as Frequency) || null
+                                setSubCategories(updated)
+                              }}
+                              className="flex-1 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm focus:outline-none focus:border-primary-500"
+                            >
+                              <option value="">No frequency</option>
+                              {FREQUENCY_OPTIONS.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => setSubCategories(subCategories.filter((_, i) => i !== idx))}
+                              className="px-2 py-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded text-xs transition"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Actions */}
               <div className="md:col-span-2 flex space-x-2">
