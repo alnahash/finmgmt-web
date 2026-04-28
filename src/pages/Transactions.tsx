@@ -39,6 +39,9 @@ export default function Transactions() {
   const [filterMonth, setFilterMonth] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
   const [importing, setImporting] = useState(false)
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false)
+  const [currencyRates, setCurrencyRates] = useState({ USD: 1, AED: 1, BHD: 1 })
+  const [pendingTransactions, setPendingTransactions] = useState<any[]>([])
 
   useEffect(() => {
     fetchData()
@@ -200,18 +203,20 @@ export default function Transactions() {
       const amountIdx = header.findIndex(h => h.toLowerCase() === 'amount')
       const descIdx = header.findIndex(h => h.toLowerCase() === 'description')
       const catIdx = header.findIndex(h => h.toLowerCase() === 'category')
+      const detailsIdx = header.findIndex(h => h.toLowerCase().includes('detail'))
 
       if (dateIdx === -1 || amountIdx === -1 || descIdx === -1) {
         alert('CSV must have Date, Amount, and Description columns')
         return
       }
 
-      // Parse transactions
+      // Parse transactions and detect currencies
       const txns = []
+      const currencyDetected = { USD: false, AED: false, BHD: true }
+
       for (let i = 1; i < lines.length; i++) {
         if (!lines[i].trim()) continue
 
-        // Simple CSV parse (handles quoted fields)
         const cells = lines[i].split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
           .map(c => c.trim().replace(/^"|"$/g, ''))
 
@@ -219,8 +224,17 @@ export default function Transactions() {
         const amountStr = cells[amountIdx]
         const desc = cells[descIdx]
         const cat = catIdx !== -1 ? cells[catIdx] : null
+        const details = detailsIdx !== -1 ? cells[detailsIdx] : ''
 
-        // Parse date (supports DD/MM/YYYY or YYYY-MM-DD)
+        // Detect currency from details or description
+        let currency = 'BHD'
+        if (details.includes('USD') || desc.includes('USD')) currency = 'USD'
+        else if (details.includes('AED') || desc.includes('AED')) currency = 'AED'
+
+        if (currency === 'USD') currencyDetected.USD = true
+        if (currency === 'AED') currencyDetected.AED = true
+
+        // Parse date
         let date = new Date()
         if (dateStr.includes('/')) {
           const [d, m, y] = dateStr.split('/')
@@ -232,13 +246,11 @@ export default function Transactions() {
         const amount = parseFloat(amountStr)
         if (isNaN(amount) || !desc) continue
 
-        // Find matching category or use first category
+        // Find matching category
         let categoryId = null
         if (cat) {
-          const matching = categories.get(
-            Array.from(categories.values()).find(
-              c => c.name.toLowerCase().includes(cat.toLowerCase())
-            )?.id || ''
+          const matching = Array.from(categories.values()).find(
+            c => c.name.toLowerCase().includes(cat.toLowerCase())
           )
           if (matching) categoryId = matching.id
         }
@@ -260,6 +272,7 @@ export default function Transactions() {
           description: desc,
           category_id: categoryId,
           transaction_date: date.toISOString().split('T')[0],
+          currency: currency,
         })
       }
 
@@ -268,21 +281,49 @@ export default function Transactions() {
         return
       }
 
-      // Insert in batches of 100
-      for (let i = 0; i < txns.length; i += 100) {
-        const batch = txns.slice(i, i + 100)
-        const { error } = await supabase.from('transactions').insert(batch)
-        if (error) throw error
+      // If multi-currency detected, show currency conversion modal
+      if (currencyDetected.USD || currencyDetected.AED) {
+        setPendingTransactions(txns)
+        setShowCurrencyModal(true)
+        return
       }
 
-      alert(`Successfully imported ${txns.length} transactions!`)
-      fetchData()
+      // Otherwise import directly
+      await importTransactions(txns, currencyRates)
     } catch (error) {
       console.error('Error importing CSV:', error)
       alert('Error importing CSV. Please check the file format.')
     } finally {
       setImporting(false)
       e.target.value = ''
+    }
+  }
+
+  const importTransactions = async (txns: any[], rates: any) => {
+    try {
+      // Convert amounts to BHD
+      const converted = txns.map(txn => ({
+        ...txn,
+        amount: txn.currency === 'BHD' ? txn.amount : txn.amount / rates[txn.currency],
+      }))
+
+      // Remove currency field before inserting
+      const toInsert = converted.map(({ currency, ...rest }) => rest)
+
+      // Insert in batches of 100
+      for (let i = 0; i < toInsert.length; i += 100) {
+        const batch = toInsert.slice(i, i + 100)
+        const { error } = await supabase.from('transactions').insert(batch)
+        if (error) throw error
+      }
+
+      alert(`Successfully imported ${toInsert.length} transactions (converted to BHD)!`)
+      fetchData()
+      setPendingTransactions([])
+      setShowCurrencyModal(false)
+    } catch (error) {
+      console.error('Error importing transactions:', error)
+      alert('Error importing transactions.')
     }
   }
 
@@ -402,6 +443,62 @@ export default function Transactions() {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* Currency Conversion Modal */}
+        {showCurrencyModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4">
+              <h2 className="text-lg font-semibold text-white mb-4">Convert Currencies to BHD</h2>
+              <p className="text-slate-400 text-sm mb-4">Your CSV contains multiple currencies. Set exchange rates to convert to BHD:</p>
+
+              <div className="space-y-3 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">1 USD = ? BHD</label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={currencyRates.USD}
+                    onChange={(e) => setCurrencyRates({ ...currencyRates, USD: parseFloat(e.target.value) || 1 })}
+                    placeholder="0.377"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Current rate: ~0.377</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">1 AED = ? BHD</label>
+                  <input
+                    type="number"
+                    step="0.001"
+                    value={currencyRates.AED}
+                    onChange={(e) => setCurrencyRates({ ...currencyRates, AED: parseFloat(e.target.value) || 1 })}
+                    placeholder="0.103"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Current rate: ~0.103</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => importTransactions(pendingTransactions, currencyRates)}
+                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 rounded-lg transition"
+                >
+                  Import & Convert
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCurrencyModal(false)
+                    setPendingTransactions([])
+                  }}
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
