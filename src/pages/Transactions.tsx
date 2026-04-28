@@ -237,6 +237,25 @@ export default function Transactions() {
     }
   }
 
+  const fetchExchangeRates = async () => {
+    try {
+      const response = await fetch('https://api.exchangerate.host/latest?base=BHD&symbols=USD,AED')
+      const data = await response.json()
+      if (data.success || data.rates) {
+        const rates = data.rates || {}
+        setCurrencyRates({
+          USD: rates.USD ? (1 / rates.USD) : 0.377,
+          AED: rates.AED ? (1 / rates.AED) : 0.103,
+          BHD: 1,
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching exchange rates:', error)
+      // Use default rates if fetch fails
+      setCurrencyRates({ USD: 0.377, AED: 0.103, BHD: 1 })
+    }
+  }
+
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !user) return
@@ -338,6 +357,7 @@ export default function Transactions() {
       // If multi-currency detected, show currency conversion modal
       if (currencyDetected.USD || currencyDetected.AED) {
         setPendingTransactions(txns)
+        await fetchExchangeRates()
         setShowCurrencyModal(true)
         return
       }
@@ -518,7 +538,7 @@ export default function Transactions() {
                     placeholder="0.377"
                     className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
                   />
-                  <p className="text-xs text-slate-500 mt-1">Current rate: ~0.377</p>
+                  <p className="text-xs text-slate-500 mt-1">Current rate: ~{currencyRates.USD.toFixed(3)}</p>
                 </div>
 
                 <div>
@@ -531,7 +551,7 @@ export default function Transactions() {
                     placeholder="0.103"
                     className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
                   />
-                  <p className="text-xs text-slate-500 mt-1">Current rate: ~0.103</p>
+                  <p className="text-xs text-slate-500 mt-1">Current rate: ~{currencyRates.AED.toFixed(3)}</p>
                 </div>
               </div>
 
