@@ -354,7 +354,7 @@ export default function Transactions() {
         return
       }
 
-      // If multi-currency detected, show currency conversion modal
+      // If any non-BHD currency detected, show currency conversion modal
       if (currencyDetected.USD || currencyDetected.AED) {
         setPendingTransactions(txns)
         await fetchExchangeRates()
@@ -362,8 +362,8 @@ export default function Transactions() {
         return
       }
 
-      // Otherwise import directly
-      await importTransactions(txns, currencyRates)
+      // If only BHD detected, import with default BHD rates
+      await importTransactions(txns, { USD: 0.377, AED: 0.103, BHD: 1 })
     } catch (error) {
       console.error('Error importing CSV:', error)
       alert('Error importing CSV. Please check the file format.')
@@ -375,10 +375,10 @@ export default function Transactions() {
 
   const importTransactions = async (txns: any[], rates: any) => {
     try {
-      // Convert amounts to BHD
+      // Convert amounts to BHD using proper formula
       const converted = txns.map(txn => ({
         ...txn,
-        amount: txn.currency === 'BHD' ? txn.amount : txn.amount / rates[txn.currency],
+        amount: txn.currency === 'BHD' ? txn.amount : txn.amount * rates[txn.currency],
       }))
 
       // Remove currency field before inserting
