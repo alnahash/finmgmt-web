@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { Plus, Trash2, Edit2, Filter } from 'lucide-react'
+import { Plus, Trash2, Edit2, Filter, X } from 'lucide-react'
 
 interface Transaction {
   id: string
@@ -35,6 +35,9 @@ export default function Transactions() {
     transaction_date: new Date().toISOString().split('T')[0],
   })
   const [filterDate, setFilterDate] = useState('')
+  const [filterYear, setFilterYear] = useState('')
+  const [filterMonth, setFilterMonth] = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
 
   useEffect(() => {
     fetchData()
@@ -147,9 +150,34 @@ export default function Transactions() {
     setShowForm(true)
   }
 
-  const filteredTransactions = filterDate
-    ? transactions.filter((t) => t.transaction_date === filterDate)
-    : transactions
+  const filteredTransactions = transactions.filter((t) => {
+    if (filterDate && t.transaction_date !== filterDate) return false
+    if (filterYear) {
+      const txnYear = new Date(t.transaction_date).getFullYear().toString()
+      if (txnYear !== filterYear) return false
+    }
+    if (filterMonth) {
+      const txnMonth = String(new Date(t.transaction_date).getMonth() + 1).padStart(2, '0')
+      if (txnMonth !== filterMonth) return false
+    }
+    if (filterCategory && t.category_id !== filterCategory) return false
+    return true
+  })
+
+  const getYearOptions = () => {
+    const years = new Set<string>()
+    transactions.forEach((t) => {
+      years.add(new Date(t.transaction_date).getFullYear().toString())
+    })
+    return Array.from(years).sort((a, b) => Number(b) - Number(a))
+  }
+
+  const clearAllFilters = () => {
+    setFilterDate('')
+    setFilterYear('')
+    setFilterMonth('')
+    setFilterCategory('')
+  }
 
   return (
     <Layout>
@@ -258,24 +286,93 @@ export default function Transactions() {
         )}
 
         {/* Filter */}
-        <div className="mb-6">
-          <div className="flex items-center space-x-2">
+        <div className="mb-6 bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <div className="flex items-center space-x-3 mb-4">
             <Filter className="w-5 h-5 text-slate-400" />
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 focus:outline-none focus:border-primary-500"
-            />
-            {filterDate && (
-              <button
-                onClick={() => setFilterDate('')}
-                className="text-slate-400 hover:text-white text-sm"
-              >
-                Clear filter
-              </button>
-            )}
+            <h3 className="text-sm font-medium text-slate-300">Filters</h3>
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-2">Year</label>
+              <select
+                value={filterYear}
+                onChange={(e) => setFilterYear(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-300 text-sm focus:outline-none focus:border-primary-500"
+              >
+                <option value="">All years</option>
+                {getYearOptions().map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-2">Month</label>
+              <select
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-300 text-sm focus:outline-none focus:border-primary-500"
+              >
+                <option value="">All months</option>
+                {[
+                  { val: '01', label: 'January' },
+                  { val: '02', label: 'February' },
+                  { val: '03', label: 'March' },
+                  { val: '04', label: 'April' },
+                  { val: '05', label: 'May' },
+                  { val: '06', label: 'June' },
+                  { val: '07', label: 'July' },
+                  { val: '08', label: 'August' },
+                  { val: '09', label: 'September' },
+                  { val: '10', label: 'October' },
+                  { val: '11', label: 'November' },
+                  { val: '12', label: 'December' },
+                ].map(({ val, label }) => (
+                  <option key={val} value={val}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-2">Category</label>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-300 text-sm focus:outline-none focus:border-primary-500"
+              >
+                <option value="">All categories</option>
+                {Array.from(categories.values()).map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.icon} {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-2">Date</label>
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-300 text-sm focus:outline-none focus:border-primary-500"
+              />
+            </div>
+          </div>
+
+          {(filterDate || filterYear || filterMonth || filterCategory) && (
+            <button
+              onClick={clearAllFilters}
+              className="mt-4 flex items-center space-x-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white text-sm rounded-lg transition"
+            >
+              <X className="w-4 h-4" />
+              <span>Clear all filters</span>
+            </button>
+          )}
         </div>
 
         {/* Transactions List */}
