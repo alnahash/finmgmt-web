@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { Plus, Trash2, Edit2, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, Edit2, ChevronRight, LayoutGrid, List } from 'lucide-react'
 
 type Frequency = 'one_off' | 'weekly' | 'monthly' | 'yearly' | 'dynamic'
 
@@ -54,6 +54,7 @@ export default function Categories() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState(emptyForm)
+  const [view, setView] = useState<'card' | 'list'>('card')
 
   useEffect(() => { fetchCategories() }, [user])
 
@@ -177,6 +178,42 @@ export default function Categories() {
     )
   }
 
+  const renderListRow = (cat: Category, isChild = false) => {
+    const children = childrenOf(cat.id)
+    return (
+      <div key={cat.id}>
+        <div className={`flex items-center justify-between px-4 py-3 border-b border-slate-700 hover:bg-slate-700/40 transition ${isChild ? 'bg-slate-800/50' : ''}`}>
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            {isChild && <span className="w-4 shrink-0" />}
+            {isChild && <ChevronRight className="w-4 h-4 text-slate-500 shrink-0 -ml-4" />}
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ backgroundColor: cat.color }}
+            />
+            <span className="text-lg shrink-0">{cat.icon}</span>
+            <span className="text-white text-sm font-medium truncate">{cat.name}</span>
+            {isChild && <span className="text-xs text-slate-500 shrink-0">sub</span>}
+          </div>
+          <div className="flex items-center gap-4 shrink-0 ml-4">
+            <FreqBadge freq={cat.frequency} />
+            <span className={`text-xs font-medium w-14 text-right ${cat.type === 'income' ? 'text-green-400' : 'text-slate-400'}`}>
+              {cat.type}
+            </span>
+            <div className="flex gap-2">
+              <button onClick={() => handleEdit(cat)} className="text-slate-400 hover:text-primary-500 transition">
+                <Edit2 className="w-4 h-4" />
+              </button>
+              <button onClick={() => handleDelete(cat.id)} className="text-slate-400 hover:text-red-500 transition">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+        {children.map(child => renderListRow(child, true))}
+      </div>
+    )
+  }
+
   const expenseParents = parents.filter(c => c.type === 'expense')
   const incomeParents = parents.filter(c => c.type === 'income')
 
@@ -185,13 +222,32 @@ export default function Categories() {
       <div className="max-w-5xl mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-white">Categories</h1>
-          <button
-            onClick={() => { setShowForm(!showForm); if (showForm) cancelForm() }}
-            className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Add Category</span>
-          </button>
+          <div className="flex items-center gap-3">
+            {/* View toggle */}
+            <div className="flex bg-slate-800 border border-slate-700 rounded-lg p-1">
+              <button
+                onClick={() => setView('card')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition ${view === 'card' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                <LayoutGrid className="w-4 h-4" />
+                Card
+              </button>
+              <button
+                onClick={() => setView('list')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition ${view === 'list' ? 'bg-primary-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                <List className="w-4 h-4" />
+                List
+              </button>
+            </div>
+            <button
+              onClick={() => { setShowForm(!showForm); if (showForm) cancelForm() }}
+              className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Add Category</span>
+            </button>
+          </div>
         </div>
 
         {/* Form */}
@@ -306,16 +362,16 @@ export default function Categories() {
           </div>
         )}
 
-        {/* List */}
+        {/* Category display */}
         {loading ? (
           <div className="space-y-3">
-            {[1, 2, 3].map(i => <div key={i} className="h-20 bg-slate-800 rounded-lg animate-pulse" />)}
+            {[1, 2, 3].map(i => <div key={i} className="h-16 bg-slate-800 rounded-lg animate-pulse" />)}
           </div>
         ) : categories.length === 0 ? (
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center text-slate-400">
             No categories yet. Click "Add Category" to get started.
           </div>
-        ) : (
+        ) : view === 'card' ? (
           <div className="space-y-8">
             {expenseParents.length > 0 && (
               <div>
@@ -332,6 +388,35 @@ export default function Categories() {
                   {incomeParents.map(cat => renderCard(cat))}
                 </div>
               </div>
+            )}
+          </div>
+        ) : (
+          /* List view */
+          <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+            {/* Table header */}
+            <div className="flex items-center justify-between px-4 py-2 bg-slate-900 border-b border-slate-700">
+              <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Name</span>
+              <div className="flex items-center gap-4 shrink-0 ml-4">
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Frequency</span>
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wide w-14 text-right">Type</span>
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wide w-12 text-right">Actions</span>
+              </div>
+            </div>
+            {expenseParents.length > 0 && (
+              <>
+                <div className="px-4 py-1.5 bg-slate-900/50">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Expenses</span>
+                </div>
+                {expenseParents.map(cat => renderListRow(cat))}
+              </>
+            )}
+            {incomeParents.length > 0 && (
+              <>
+                <div className="px-4 py-1.5 bg-slate-900/50 border-t border-slate-700">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Income</span>
+                </div>
+                {incomeParents.map(cat => renderListRow(cat))}
+              </>
             )}
           </div>
         )}
