@@ -239,19 +239,21 @@ export default function Transactions() {
 
   const fetchExchangeRates = async () => {
     try {
-      const response = await fetch('https://api.exchangerate.host/latest?base=BHD&symbols=USD,AED')
+      // open.er-api.com — free, no API key required
+      const response = await fetch('https://open.er-api.com/v6/latest/BHD')
       const data = await response.json()
-      if (data.success || data.rates) {
-        const rates = data.rates || {}
+      if (data.result === 'success' && data.rates) {
+        // data.rates gives "1 BHD = X currency", so invert to get "1 currency = X BHD"
         setCurrencyRates({
-          USD: rates.USD ? (1 / rates.USD) : 0.377,
-          AED: rates.AED ? (1 / rates.AED) : 0.103,
+          USD: data.rates.USD ? parseFloat((1 / data.rates.USD).toFixed(6)) : 0.377,
+          AED: data.rates.AED ? parseFloat((1 / data.rates.AED).toFixed(6)) : 0.103,
           BHD: 1,
         })
+      } else {
+        setCurrencyRates({ USD: 0.377, AED: 0.103, BHD: 1 })
       }
     } catch (error) {
       console.error('Error fetching exchange rates:', error)
-      // Use default rates if fetch fails
       setCurrencyRates({ USD: 0.377, AED: 0.103, BHD: 1 })
     }
   }
