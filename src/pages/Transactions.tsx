@@ -44,6 +44,9 @@ export default function Transactions() {
   const [pendingTransactions, setPendingTransactions] = useState<any[]>([])
   const [view, setView] = useState<'list' | 'card' | 'table' | 'calendar' | 'stats'>('list')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
+  const [deleteProgress, setDeleteProgress] = useState(0)
+  const [deleteTotal, setDeleteTotal] = useState(0)
 
   useEffect(() => {
     fetchData()
@@ -208,14 +211,29 @@ export default function Transactions() {
     if (selectedIds.size === 0) return
     if (!confirm(`Delete ${selectedIds.size} transaction(s)?`)) return
 
+    setDeleting(true)
+    setDeleteTotal(selectedIds.size)
+    setDeleteProgress(0)
+
     try {
+      let deleted = 0
       for (const id of selectedIds) {
         await supabase.from('transactions').delete().eq('id', id).eq('user_id', user?.id)
+        deleted++
+        setDeleteProgress(deleted)
       }
       setSelectedIds(new Set())
-      fetchData()
+      setTimeout(() => {
+        setDeleting(false)
+        setDeleteProgress(0)
+        setDeleteTotal(0)
+        fetchData()
+      }, 500)
     } catch (error) {
       console.error('Error deleting transactions:', error)
+      setDeleting(false)
+      setDeleteProgress(0)
+      setDeleteTotal(0)
     }
   }
 
@@ -534,6 +552,30 @@ export default function Transactions() {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Progress Modal */}
+        {deleting && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4">
+              <h2 className="text-lg font-semibold text-white mb-4">Deleting Transactions</h2>
+              <div className="mb-4">
+                <div className="flex justify-between mb-2">
+                  <span className="text-sm text-slate-300">{deleteProgress} of {deleteTotal}</span>
+                  <span className="text-sm text-slate-400">{Math.round((deleteProgress / deleteTotal) * 100)}%</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="bg-primary-500 h-3 transition-all duration-300"
+                    style={{ width: `${(deleteProgress / deleteTotal) * 100}%` }}
+                  />
+                </div>
+              </div>
+              <p className="text-slate-400 text-sm text-center">
+                {deleteProgress === deleteTotal ? 'Completed!' : 'Please wait...'}
+              </p>
             </div>
           </div>
         )}
