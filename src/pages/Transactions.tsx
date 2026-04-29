@@ -46,6 +46,7 @@ export default function Transactions() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [userCurrency, setUserCurrency] = useState('BHD')
   const [categorySearch, setCategorySearch] = useState('')
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteProgress, setDeleteProgress] = useState(0)
   const [deleteTotal, setDeleteTotal] = useState(0)
@@ -53,6 +54,21 @@ export default function Transactions() {
   useEffect(() => {
     fetchData()
   }, [user])
+
+  // Close category dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-category-dropdown]')) {
+        setShowCategoryDropdown(false)
+      }
+    }
+
+    if (showCategoryDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showCategoryDropdown])
 
   const fetchData = async () => {
     if (!user) return
@@ -1065,40 +1081,72 @@ export default function Transactions() {
                 />
               </div>
 
-              <div>
+              <div data-category-dropdown>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Category</label>
-                <div className="space-y-2">
+                <div className="relative">
+                  {/* Search Input */}
                   <input
                     type="text"
-                    placeholder="Search categories..."
+                    placeholder="Search and select category..."
                     value={categorySearch}
-                    onChange={(e) => setCategorySearch(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-primary-500"
-                  />
-                  <select
-                    value={formData.category_id}
                     onChange={(e) => {
-                      setFormData({ ...formData, category_id: e.target.value })
-                      setCategorySearch('')
+                      setCategorySearch(e.target.value)
+                      setShowCategoryDropdown(true)
                     }}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                    required
-                  >
-                    <option value="">Select category</option>
-                    {Array.from(categories.values())
-                      .map((cat) => ({
-                        cat,
-                        score: categorySearch === '' ? Infinity : getFuzzyScore(cat.name, categorySearch),
-                      }))
-                      .filter(({ score }) => score > 0 || categorySearch === '')
-                      .sort(({ score: scoreA }, { score: scoreB }) => scoreB - scoreA)
-                      .map(({ cat }) => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.icon} {cat.name}
-                        </option>
-                      ))}
-                  </select>
+                    onFocus={() => setShowCategoryDropdown(true)}
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-primary-500"
+                    required={!formData.category_id}
+                  />
+
+                  {/* Dropdown Results */}
+                  {showCategoryDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 border border-slate-600 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                      {Array.from(categories.values())
+                        .map((cat) => ({
+                          cat,
+                          score:
+                            categorySearch === '' ? Infinity : getFuzzyScore(cat.name, categorySearch),
+                        }))
+                        .filter(({ score }) => score > 0 || categorySearch === '')
+                        .sort(({ score: scoreA }, { score: scoreB }) => scoreB - scoreA)
+                        .map(({ cat }) => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => {
+                              setFormData({ ...formData, category_id: cat.id })
+                              setCategorySearch(cat.name)
+                              setShowCategoryDropdown(false)
+                            }}
+                            className={`w-full px-3 py-2 text-left hover:bg-slate-600 transition flex items-center space-x-2 ${
+                              formData.category_id === cat.id ? 'bg-primary-500/20 border-l-2 border-primary-500' : ''
+                            }`}
+                          >
+                            <span className="text-lg">{cat.icon}</span>
+                            <span className="text-white">{cat.name}</span>
+                            {formData.category_id === cat.id && (
+                              <span className="ml-auto text-primary-500">✓</span>
+                            )}
+                          </button>
+                        ))}
+                      {Array.from(categories.values()).filter(
+                        (cat) =>
+                          categorySearch === '' ||
+                          getFuzzyScore(cat.name, categorySearch) > 0
+                      ).length === 0 && (
+                        <div className="px-3 py-2 text-slate-400 text-sm">No categories found</div>
+                      )}
+                    </div>
+                  )}
                 </div>
+
+                {/* Display selected category */}
+                {formData.category_id && (
+                  <div className="mt-2 text-sm text-slate-400">
+                    Selected: {Array.from(categories.values()).find((c) => c.id === formData.category_id)?.icon}{' '}
+                    {Array.from(categories.values()).find((c) => c.id === formData.category_id)?.name}
+                  </div>
+                )}
               </div>
 
               <div>
