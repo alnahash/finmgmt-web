@@ -461,115 +461,6 @@ export default function Transactions() {
           </div>
         </div>
 
-        {/* Form */}
-        {showForm && (
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
-            <h2 className="text-lg font-semibold text-white mb-4">
-              {editingId ? 'Edit Transaction' : 'New Transaction'}
-            </h2>
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Date</label>
-                <input
-                  type="date"
-                  value={formData.transaction_date}
-                  onChange={(e) =>
-                    setFormData({ ...formData, transaction_date: e.target.value })
-                  }
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Category</label>
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    placeholder="Search categories..."
-                    value={categorySearch}
-                    onChange={(e) => setCategorySearch(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-primary-500"
-                  />
-                  <select
-                    value={formData.category_id}
-                    onChange={(e) => {
-                      setFormData({ ...formData, category_id: e.target.value })
-                      setCategorySearch('')
-                    }}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                    required
-                  >
-                    <option value="">Select category</option>
-                    {Array.from(categories.values())
-                      .filter((cat) =>
-                        categorySearch === '' ||
-                        `${cat.icon} ${cat.name}`
-                          .toLowerCase()
-                          .includes(categorySearch.toLowerCase())
-                      )
-                      .map((cat) => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.icon} {cat.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Amount</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  placeholder="0.00"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Description</label>
-                <input
-                  type="text"
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  placeholder="Optional notes"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                />
-              </div>
-
-              <div className="md:col-span-2 flex space-x-2">
-                <button
-                  type="submit"
-                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 rounded-lg transition"
-                >
-                  {editingId ? 'Update' : 'Save'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false)
-                    setEditingId(null)
-                    setCategorySearch('')
-                    setFormData({
-                      amount: '',
-                      description: '',
-                      category_id: '',
-                      transaction_date: new Date().toISOString().split('T')[0],
-                    })
-                  }}
-                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-lg transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
 
         {/* Currency Conversion Modal */}
         {showCurrencyModal && (
@@ -1079,6 +970,140 @@ export default function Transactions() {
           </div>
         )}
       </div>
+
+      {/* Transaction Form Modal - Outside max-w-6xl for proper fixed positioning */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4 max-h-screen overflow-y-auto">
+            {/* Close Button */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white">
+                {editingId ? 'Edit Transaction' : 'New Transaction'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false)
+                  setEditingId(null)
+                  setCategorySearch('')
+                  setFormData({
+                    amount: '',
+                    description: '',
+                    category_id: '',
+                    transaction_date: new Date().toISOString().split('T')[0],
+                  })
+                }}
+                className="text-slate-400 hover:text-white text-2xl leading-none"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Date</label>
+                <input
+                  type="date"
+                  value={formData.transaction_date}
+                  onChange={(e) =>
+                    setFormData({ ...formData, transaction_date: e.target.value })
+                  }
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Category</label>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Search categories..."
+                    value={categorySearch}
+                    onChange={(e) => setCategorySearch(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-primary-500"
+                  />
+                  <select
+                    value={formData.category_id}
+                    onChange={(e) => {
+                      setFormData({ ...formData, category_id: e.target.value })
+                      setCategorySearch('')
+                    }}
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                    required
+                  >
+                    <option value="">Select category</option>
+                    {Array.from(categories.values())
+                      .filter((cat) =>
+                        categorySearch === '' ||
+                        `${cat.icon} ${cat.name}`
+                          .toLowerCase()
+                          .includes(categorySearch.toLowerCase())
+                      )
+                      .map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.icon} {cat.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Amount</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.amount}
+                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Description</label>
+                <input
+                  type="text"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  placeholder="Optional notes"
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                />
+              </div>
+
+              <div className="flex space-x-2 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 rounded-lg transition"
+                >
+                  {editingId ? 'Update' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForm(false)
+                    setEditingId(null)
+                    setCategorySearch('')
+                    setFormData({
+                      amount: '',
+                      description: '',
+                      category_id: '',
+                      transaction_date: new Date().toISOString().split('T')[0],
+                    })
+                  }}
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </Layout>
   )
 }
