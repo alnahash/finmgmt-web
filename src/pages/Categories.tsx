@@ -491,14 +491,25 @@ export default function Categories() {
           </div>
         </div>
 
-        {/* Form */}
         {showForm && (
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
-            <h2 className="text-lg font-semibold text-white mb-4">
-              {editingId ? 'Edit Category' : 'New Category'}
-            </h2>
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-screen overflow-y-auto">
+              {/* Close Button */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-white">
+                  {editingId ? 'Edit Category' : 'New Category'}
+                </h2>
+                <button
+                  type="button"
+                  onClick={cancelForm}
+                  className="text-slate-400 hover:text-white text-2xl leading-none"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
 
+              <form onSubmit={handleSubmit} className="space-y-4">
               {/* Name */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Name</label>
@@ -750,7 +761,8 @@ export default function Categories() {
                   Cancel
                 </button>
               </div>
-            </form>
+              </form>
+            </div>
           </div>
         )}
 
