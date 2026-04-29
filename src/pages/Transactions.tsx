@@ -115,6 +115,9 @@ export default function Transactions() {
     if (!user || !formData.category_id || !formData.amount) return
 
     try {
+      const isEditing = !!editingId
+      const transactionIdToScroll = editingId
+
       if (editingId) {
         // Update
         await supabase
@@ -149,7 +152,22 @@ export default function Transactions() {
       setCategorySearch('')
       setEditingId(null)
       setShowForm(false)
-      fetchData()
+      await fetchData()
+
+      // Scroll to the edited transaction after data is refreshed
+      if (isEditing && transactionIdToScroll) {
+        setTimeout(() => {
+          const element = document.querySelector(`[data-transaction-id="${transactionIdToScroll}"]`)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            // Highlight the edited transaction briefly
+            element.classList.add('ring-2', 'ring-primary-500', 'ring-opacity-50')
+            setTimeout(() => {
+              element.classList.remove('ring-2', 'ring-primary-500', 'ring-opacity-50')
+            }, 2000)
+          }
+        }, 100)
+      }
     } catch (error) {
       console.error('Error saving transaction:', error)
     }
@@ -728,7 +746,7 @@ export default function Transactions() {
           /* List View */
           <div className="space-y-2">
             {filteredTransactions.map((t) => (
-              <div key={t.id} className={`bg-slate-800 border rounded-lg p-4 flex items-center justify-between hover:border-primary-500 transition ${selectedIds.has(t.id) ? 'border-primary-500 bg-primary-950' : 'border-slate-700'}`}>
+              <div key={t.id} data-transaction-id={t.id} className={`bg-slate-800 border rounded-lg p-4 flex items-center justify-between hover:border-primary-500 transition ${selectedIds.has(t.id) ? 'border-primary-500 bg-primary-950' : 'border-slate-700'}`}>
                 <div className="flex items-center space-x-4 flex-1">
                   <button
                     onClick={() => toggleSelect(t.id)}
@@ -771,7 +789,7 @@ export default function Transactions() {
           /* Card View */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredTransactions.map((t) => (
-              <div key={t.id} className={`border rounded-lg p-4 hover:border-primary-500 transition ${selectedIds.has(t.id) ? 'border-primary-500 bg-primary-950' : 'border-slate-700 bg-slate-800'}`}>
+              <div key={t.id} data-transaction-id={t.id} className={`border rounded-lg p-4 hover:border-primary-500 transition ${selectedIds.has(t.id) ? 'border-primary-500 bg-primary-950' : 'border-slate-700 bg-slate-800'}`}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center space-x-2">
                     <button
@@ -838,7 +856,7 @@ export default function Transactions() {
                 </thead>
                 <tbody className="divide-y divide-slate-700">
                   {filteredTransactions.map((t) => (
-                    <tr key={t.id} className={`transition ${selectedIds.has(t.id) ? 'bg-primary-950/30' : 'hover:bg-slate-700/50'}`}>
+                    <tr key={t.id} data-transaction-id={t.id} className={`transition ${selectedIds.has(t.id) ? 'bg-primary-950/30' : 'hover:bg-slate-700/50'}`}>
                       <td className="px-4 py-3 text-center">
                         <button
                           onClick={() => toggleSelect(t.id)}
@@ -897,7 +915,7 @@ export default function Transactions() {
                   </div>
                   <div className="space-y-2 pl-6 border-l-2 border-primary-500">
                     {txns.map((t) => (
-                      <div key={t.id} className="flex items-center justify-between p-3 bg-slate-700/50 rounded">
+                      <div key={t.id} data-transaction-id={t.id} className="flex items-center justify-between p-3 bg-slate-700/50 rounded">
                         <div className="flex items-center space-x-3 flex-1">
                           <span className="text-xl">{t.category_icon}</span>
                           <div>
