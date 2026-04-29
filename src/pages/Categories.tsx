@@ -24,18 +24,18 @@ const DEFAULT_EMOJIS = [
   '🚗', '🚕', '🚌', '✈️', '🚂', '🚢', '⛽', '🛴', '🏍️', '🚲',
   // Housing & Utilities
   '🏠', '🏡', '🏢', '💡', '💧', '🔥', '📱', '📺', '🌐', '🔧',
-  // Health & Personal Care
-  '💊', '🏥', '💇', '💄', '🧴', '🧼', '🛁', '💅', '🧘', '🏋️',
+  // Health & Personal Care & Spa
+  '💊', '🏥', '💇', '💄', '🧴', '🧼', '🛁', '💅', '🧘', '🏋️', '💆', '🧖',
   // Shopping & Retail
   '🛒', '👕', '👟', '👔', '👜', '💍', '⌚', '👓', '🧥', '🧢',
   // Entertainment
   '🎬', '🎮', '🎵', '🎤', '🎪', '🎨', '🎭', '🎯', '🎳', '🃏',
   // Education & Books
   '📚', '🎓', '📖', '✏️', '🖊️', '📝', '📐', '🔬', '🔭', '🧮',
-  // Family & Personal
-  '👨‍👩‍👧‍👦', '🎁', '🎂', '🎉', '💐', '💝', '👶', '👴', '👵', '🐕',
-  // Work & Business
-  '💼', '💻', '📊', '📈', '💰', '💸', '💳', '🏦', '📱', '⌨️',
+  // Family & Personal & Occasion
+  '👨‍👩‍👧‍👦', '🎁', '🎂', '🎉', '🎊', '🥳', '💐', '💝', '👶', '👴', '👵', '🐕',
+  // Work & Business & Income
+  '💼', '💻', '📊', '📈', '💹', '💰', '💸', '💳', '🏦', '📱', '⌨️',
   // Wellness & Recreation
   '⚽', '🏊', '🧗', '🚴', '🏃', '🧘', '🛀', '🏖️', '⛺', '🎿',
   // Miscellaneous
@@ -53,6 +53,7 @@ const ICON_KEYWORDS: { [key: string]: string } = {
   '🔧': 'tools maintenance repair', '💊': 'medicine health pill', '🏥': 'hospital health medical', '💇': 'haircut salon',
   '💄': 'makeup beauty cosmetics', '🧴': 'cleaning supplies', '🧼': 'soap wash clean', '🛁': 'shower bath',
   '💅': 'nails manicure beauty', '🧘': 'yoga wellness meditation', '🏋️': 'gym fitness exercise workout',
+  '💆': 'massage spa relaxation wellness', '🧖': 'spa sauna wellness beauty',
   '🛒': 'shopping cart retail', '👕': 'clothes shirt fashion', '👟': 'shoes sneakers', '👔': 'suit dress clothes',
   '👜': 'bag purse fashion', '💍': 'jewelry ring', '⌚': 'watch time', '👓': 'glasses eyewear',
   '🧥': 'jacket coat clothes', '🧢': 'cap hat clothes', '🎬': 'movies film entertainment', '🎮': 'games gaming video game',
@@ -61,9 +62,9 @@ const ICON_KEYWORDS: { [key: string]: string } = {
   '📚': 'books reading education', '🎓': 'graduation school education', '📖': 'book reading', '✏️': 'pencil writing',
   '🖊️': 'pen writing stationery', '📝': 'notes writing document', '📐': 'ruler mathematics', '🔬': 'science lab research',
   '🔭': 'telescope science', '🧮': 'abacus math counting', '👨‍👩‍👧‍👦': 'family people', '🎁': 'gift present', '🎂': 'birthday cake',
-  '🎉': 'celebration party', '💐': 'flowers gift', '💝': 'gift love heart', '👶': 'baby infant', '👴': 'elderly man',
+  '🎉': 'celebration party', '🎊': 'confetti celebration party occasion', '🥳': 'party celebration occasion person', '💐': 'flowers gift', '💝': 'gift love heart', '👶': 'baby infant', '👴': 'elderly man',
   '👵': 'elderly woman', '🐕': 'dog pet animal', '💼': 'briefcase work business', '💻': 'computer laptop work',
-  '📊': 'chart graph data analytics', '📈': 'growth chart business', '💰': 'money cash finance', '💸': 'money spending',
+  '📊': 'chart graph data analytics', '📈': 'growth chart business', '💹': 'income profit growth uptrend chart', '💰': 'money cash finance', '💸': 'money spending',
   '💳': 'credit card payment', '🏦': 'bank finance building', '⌨️': 'keyboard computer', '⚽': 'soccer sports football',
   '🏊': 'swimming sports water', '🧗': 'climbing sport adventure', '🚴': 'cycling bike sport', '🏃': 'running exercise',
   '🛀': 'bath shower hygiene', '🏖️': 'beach vacation travel', '⛺': 'camping tent outdoor', '🎿': 'skiing sport',
