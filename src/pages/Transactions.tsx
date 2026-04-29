@@ -42,7 +42,7 @@ export default function Transactions() {
   const [showCurrencyModal, setShowCurrencyModal] = useState(false)
   const [currencyRates, setCurrencyRates] = useState({ USD: 1, AED: 1, BHD: 1 })
   const [pendingTransactions, setPendingTransactions] = useState<any[]>([])
-  const [view, setView] = useState<'list' | 'card' | 'table' | 'calendar' | 'stats'>('list')
+  const [view, setView] = useState<'list' | 'card' | 'table' | 'calendar' | 'stats'>('table')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [userCurrency, setUserCurrency] = useState('BHD')
   const [deleting, setDeleting] = useState(false)
