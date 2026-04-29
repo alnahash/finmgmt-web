@@ -238,6 +238,40 @@ export default function Transactions() {
       maximumFractionDigits: 3,
     }).format(amount)
 
+  // Fuzzy search helper - calculates match score for smarter category search
+  const getFuzzyScore = (text: string, query: string): number => {
+    const lowerText = text.toLowerCase()
+    const lowerQuery = query.toLowerCase()
+
+    // Exact match - highest score
+    if (lowerText === lowerQuery) return 1000
+
+    // Starts with query - very high score
+    if (lowerText.startsWith(lowerQuery)) return 500
+
+    // Contains query as complete word - high score
+    if (lowerText.split(/\s+/).some(word => word.startsWith(lowerQuery))) return 300
+
+    // Levenshtein-inspired fuzzy matching
+    let score = 0
+    let textIdx = 0
+    let queryIdx = 0
+
+    while (queryIdx < lowerQuery.length && textIdx < lowerText.length) {
+      if (lowerQuery[queryIdx] === lowerText[textIdx]) {
+        score += 10
+        queryIdx++
+      }
+      textIdx++
+    }
+
+    // Penalty for unmatched query characters
+    const unmatchedChars = lowerQuery.length - queryIdx
+    score -= unmatchedChars * 5
+
+    return Math.max(0, score)
+  }
+
   const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds)
     if (newSelected.has(id)) {
@@ -1052,13 +1086,13 @@ export default function Transactions() {
                   >
                     <option value="">Select category</option>
                     {Array.from(categories.values())
-                      .filter((cat) =>
-                        categorySearch === '' ||
-                        `${cat.icon} ${cat.name}`
-                          .toLowerCase()
-                          .includes(categorySearch.toLowerCase())
-                      )
-                      .map((cat) => (
+                      .map((cat) => ({
+                        cat,
+                        score: categorySearch === '' ? Infinity : getFuzzyScore(cat.name, categorySearch),
+                      }))
+                      .filter(({ score }) => score > 0 || categorySearch === '')
+                      .sort(({ score: scoreA }, { score: scoreB }) => scoreB - scoreA)
+                      .map(({ cat }) => (
                         <option key={cat.id} value={cat.id}>
                           {cat.icon} {cat.name}
                         </option>
