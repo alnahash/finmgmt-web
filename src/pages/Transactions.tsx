@@ -45,6 +45,7 @@ export default function Transactions() {
   const [view, setView] = useState<'list' | 'card' | 'table' | 'calendar' | 'stats'>('table')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [userCurrency, setUserCurrency] = useState('BHD')
+  const [categorySearch, setCategorySearch] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [deleteProgress, setDeleteProgress] = useState(0)
   const [deleteTotal, setDeleteTotal] = useState(0)
@@ -145,6 +146,7 @@ export default function Transactions() {
         category_id: '',
         transaction_date: new Date().toISOString().split('T')[0],
       })
+      setCategorySearch('')
       setEditingId(null)
       setShowForm(false)
       fetchData()
@@ -480,21 +482,51 @@ export default function Transactions() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Category</label>
-                <select
-                  value={formData.category_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, category_id: e.target.value })
-                  }
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                  required
-                >
-                  <option value="">Select category</option>
-                  {Array.from(categories.values()).map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.icon} {cat.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search categories..."
+                    value={categorySearch}
+                    onChange={(e) => setCategorySearch(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-primary-500"
+                  />
+                  {categorySearch && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 border border-slate-600 rounded-lg z-50 max-h-64 overflow-y-auto">
+                      {Array.from(categories.values())
+                        .filter((cat) =>
+                          `${cat.icon} ${cat.name}`
+                            .toLowerCase()
+                            .includes(categorySearch.toLowerCase())
+                        )
+                        .map((cat) => (
+                          <button
+                            key={cat.id}
+                            onClick={() => {
+                              setFormData({ ...formData, category_id: cat.id })
+                              setCategorySearch('')
+                            }}
+                            className="w-full text-left px-3 py-2 text-white hover:bg-slate-600 transition flex items-center space-x-2"
+                          >
+                            <span>{cat.icon}</span>
+                            <span>{cat.name}</span>
+                          </button>
+                        ))}
+                      {Array.from(categories.values()).filter((cat) =>
+                        `${cat.icon} ${cat.name}`
+                          .toLowerCase()
+                          .includes(categorySearch.toLowerCase())
+                      ).length === 0 && (
+                        <div className="px-3 py-2 text-slate-400 text-sm">No categories found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {formData.category_id && (
+                  <div className="mt-2 p-2 bg-slate-700 rounded-lg text-slate-300 text-sm">
+                    Selected: {Array.from(categories.values()).find((c) => c.id === formData.category_id)?.icon}{' '}
+                    {Array.from(categories.values()).find((c) => c.id === formData.category_id)?.name}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -535,6 +567,7 @@ export default function Transactions() {
                   onClick={() => {
                     setShowForm(false)
                     setEditingId(null)
+                    setCategorySearch('')
                     setFormData({
                       amount: '',
                       description: '',
