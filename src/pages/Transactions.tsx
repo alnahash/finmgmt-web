@@ -66,15 +66,27 @@ export default function Transactions() {
         .single()
       if (profile?.currency) setUserCurrency(profile.currency)
 
-      // Fetch categories
+      // Fetch categories with parent info
       const { data: cats } = await supabase
         .from('categories')
-        .select('id, name, icon')
+        .select('id, name, icon, parent_id')
         .eq('user_id', user.id)
 
       const catMap = new Map()
       cats?.forEach((cat) => catMap.set(cat.id, cat))
       setCategories(catMap)
+
+      // Helper to get full category name (Main / Sub)
+      const getFullCategoryName = (catId: string) => {
+        const cat = catMap.get(catId)
+        if (!cat) return 'Uncategorized'
+
+        if (cat.parent_id) {
+          const parent = catMap.get(cat.parent_id)
+          return parent ? `${parent.name} / ${cat.name}` : cat.name
+        }
+        return cat.name
+      }
 
       // Fetch transactions
       const { data: txns } = await supabase
@@ -85,7 +97,7 @@ export default function Transactions() {
 
       const enriched = txns?.map((t) => ({
         ...t,
-        category_name: catMap.get(t.category_id)?.name || 'Uncategorized',
+        category_name: getFullCategoryName(t.category_id),
         category_icon: catMap.get(t.category_id)?.icon || '📁',
       })) || []
 
