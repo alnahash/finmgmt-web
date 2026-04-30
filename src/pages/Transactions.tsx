@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useState, useMemo } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
@@ -70,6 +70,19 @@ export default function Transactions() {
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [showCategoryDropdown])
+
+  // Memoize period options to prevent duplicates from multiple renders
+  const periodOptions = useMemo(() => {
+    const periods = new Set<string>()
+    transactions.forEach((t) => {
+      const key = getMonthPeriodKey(t.transaction_date)
+      if (key && key.trim() && key.includes('-')) {
+        periods.add(key)
+      }
+    })
+    const uniquePeriods = Array.from(periods).filter(p => p && p.trim())
+    return uniquePeriods.sort().reverse()
+  }, [transactions, monthStartDay])
 
   const fetchData = async () => {
     if (!user) return
@@ -273,16 +286,8 @@ export default function Transactions() {
     return `${startLabel} - ${endLabel}`
   }
 
-  // Get unique month periods from transactions
-  const getMonthPeriodOptions = () => {
-    const periods = new Set<string>()
-    transactions.forEach((t) => {
-      periods.add(getMonthPeriodKey(t.transaction_date))
-    })
-    return Array.from(periods)
-      .sort()
-      .reverse()
-  }
+  // Get unique month periods from transactions (using memoized value)
+  const getMonthPeriodOptions = () => periodOptions
 
   const clearAllFilters = () => {
     setFilterDate('')
