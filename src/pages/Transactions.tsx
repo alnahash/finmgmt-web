@@ -262,13 +262,18 @@ export default function Transactions() {
   // Returns format like "202404-25" meaning the period starting on the 25th
   const getMonthPeriodKey = (dateStr: string): string => {
     const date = new Date(dateStr)
-    const year = date.getFullYear()
+    let year = date.getFullYear()
     let month = date.getMonth() + 1
     const day = date.getDate()
 
     // If the day is before the month start day, it belongs to the previous month's period
     if (day < monthStartDay) {
-      month = month === 1 ? 12 : month - 1
+      if (month === 1) {
+        month = 12
+        year = year - 1  // Go back a year when rolling from January to December
+      } else {
+        month = month - 1
+      }
     }
 
     return `${year}${String(month).padStart(2, '0')}-${monthStartDay}`
@@ -282,13 +287,18 @@ export default function Transactions() {
     const month = parseInt(yearMonth.substring(4, 6))
 
     const startDate = new Date(year, month - 1, parseInt(startDay))
-    let endDate = new Date(year, month, parseInt(startDay) - 1)
+    const endDate = new Date(year, month, parseInt(startDay) - 1)
 
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     const startLabel = `${months[startDate.getMonth()]} ${startDate.getDate()}`
     const endLabel = `${months[endDate.getMonth()]} ${endDate.getDate()}`
 
-    return `${startLabel} - ${endLabel}`
+    // Include year if period spans two different years
+    const endYear = endDate.getFullYear()
+    if (year !== endYear) {
+      return `${startLabel} ${year} - ${endLabel} ${endYear}`
+    }
+    return `${startLabel} - ${endLabel} ${year}`
   }
 
   // Get unique month periods from transactions
