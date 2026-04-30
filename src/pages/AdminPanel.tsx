@@ -66,9 +66,21 @@ export default function AdminPanel() {
 
       const userIds = (authStats || []).map((u: { id: string }) => u.id)
 
+      // Fetch categories to identify income vs expense
+      const { data: allCategories } = await supabase
+        .from('categories')
+        .select('id, type')
+
+      const categoryTypeMap = new Map(
+        (allCategories || []).map((c: { id: string; type?: string }) => [
+          c.id,
+          c.type || 'expense'
+        ])
+      )
+
       const txnResults = await Promise.all(
         userIds.map((uid: string) =>
-          supabase.from('transactions').select('amount').eq('user_id', uid)
+          supabase.from('transactions').select('amount, category_id').eq('user_id', uid)
         )
       )
 
@@ -76,7 +88,10 @@ export default function AdminPanel() {
         ...u,
         login_count: Number(u.login_count),
         transaction_count: txnResults[i].data?.length || 0,
-        total_spending: txnResults[i].data?.reduce((s: number, t: { amount: number }) => s + t.amount, 0) || 0,
+        total_spending: txnResults[i].data?.reduce((s: number, t: { amount: number; category_id: string }) => {
+          const catType = categoryTypeMap.get(t.category_id)
+          return catType === 'income' ? s : s + t.amount
+        }, 0) || 0,
       }))
 
       setUsers(enriched)
