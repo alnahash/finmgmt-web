@@ -71,19 +71,6 @@ export default function Transactions() {
     }
   }, [showCategoryDropdown])
 
-  // Memoize period options to prevent duplicates from multiple renders
-  const periodOptions = useMemo(() => {
-    const periods = new Set<string>()
-    transactions.forEach((t) => {
-      const key = getMonthPeriodKey(t.transaction_date)
-      if (key && key.trim() && key.includes('-')) {
-        periods.add(key)
-      }
-    })
-    const uniquePeriods = Array.from(periods).filter(p => p && p.trim())
-    return uniquePeriods.sort().reverse()
-  }, [transactions, monthStartDay])
-
   const fetchData = async () => {
     if (!user) return
     setLoading(true)
@@ -285,6 +272,19 @@ export default function Transactions() {
 
     return `${startLabel} - ${endLabel}`
   }
+
+  // Memoize period options to prevent duplicates from multiple renders
+  const periodOptions = useMemo(() => {
+    const periods = new Set<string>()
+    transactions.forEach((t) => {
+      const key = getMonthPeriodKey(t.transaction_date)
+      if (key && key.trim() && key.includes('-')) {
+        periods.add(key)
+      }
+    })
+    const uniquePeriods = Array.from(periods).filter(p => p && p.trim())
+    return uniquePeriods.sort().reverse()
+  }, [transactions, monthStartDay])
 
   // Get unique month periods from transactions (using memoized value)
   const getMonthPeriodOptions = () => periodOptions
