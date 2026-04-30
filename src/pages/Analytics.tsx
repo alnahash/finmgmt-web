@@ -18,6 +18,8 @@ interface Category {
 interface AnalyticsStats {
   totalTransactions: number
   totalSpent: number // Only expenses
+  totalIncome: number // Only income
+  savingsThisMonth: number // Income - Expenses
   avgPerTransaction: number
   topCategoryExpense: string
   topCategoryExpenseAmount: number
@@ -56,6 +58,8 @@ export default function Analytics() {
   const [stats, setStats] = useState<AnalyticsStats>({
     totalTransactions: 0,
     totalSpent: 0,
+    totalIncome: 0,
+    savingsThisMonth: 0,
     avgPerTransaction: 0,
     topCategoryExpense: '',
     topCategoryExpenseAmount: 0,
@@ -169,6 +173,8 @@ export default function Analytics() {
         setStats({
           totalTransactions: 0,
           totalSpent: 0,
+          totalIncome: 0,
+          savingsThisMonth: 0,
           avgPerTransaction: 0,
           topCategoryExpense: 'N/A',
           topCategoryExpenseAmount: 0,
@@ -198,6 +204,7 @@ export default function Analytics() {
       const uniqueDays = new Set<string>()
 
       let totalSpent = 0 // Total expenses only
+      let totalIncome = 0 // Total income only
       txns.forEach((t) => {
         // Separate by category type (income vs expense)
         const cat = categoryMap.get(t.category_id)
@@ -205,6 +212,7 @@ export default function Analytics() {
 
         if (isIncome) {
           // Income transaction
+          totalIncome += t.amount
           const current = categoryIncomeMap.get(t.category_id) || { amount: 0, count: 0 }
           categoryIncomeMap.set(t.category_id, {
             amount: current.amount + t.amount,
@@ -370,10 +378,13 @@ export default function Analytics() {
 
       const daysTracked = uniqueDays.size
       const avgPerTransaction = txns.length > 0 ? totalSpent / txns.length : 0
+      const savingsThisMonth = totalIncome - totalSpent
 
       setStats({
         totalTransactions: txns.length,
         totalSpent: parseFloat(totalSpent.toFixed(2)),
+        totalIncome: parseFloat(totalIncome.toFixed(2)),
+        savingsThisMonth: parseFloat(savingsThisMonth.toFixed(2)),
         avgPerTransaction: parseFloat(avgPerTransaction.toFixed(2)),
         topCategoryExpense: topExpenseCat?.name || 'N/A',
         topCategoryExpenseAmount: parseFloat((topExpenseCat?.value || 0).toFixed(2)),
@@ -519,6 +530,19 @@ export default function Analytics() {
                     </p>
                   </div>
                   <DollarSign className="w-8 h-8 text-orange-500/50" />
+                </div>
+              </div>
+
+              {/* Savings this Month */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-400 text-sm font-medium">Saving this Month</p>
+                    <p className={`text-3xl font-bold mt-2 ${stats.savingsThisMonth >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {getCurrencySymbol(currency)}{stats.savingsThisMonth.toFixed(2)}
+                    </p>
+                  </div>
+                  <TrendingUp className={`w-8 h-8 ${stats.savingsThisMonth >= 0 ? 'text-green-500/50' : 'text-red-500/50'}`} />
                 </div>
               </div>
 
