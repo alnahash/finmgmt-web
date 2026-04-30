@@ -19,6 +19,7 @@ interface Category {
   id: string
   name: string
   icon: string
+  parent_id?: string
 }
 
 export default function Transactions() {
@@ -785,7 +786,7 @@ export default function Transactions() {
             </div>
           </div>
 
-          {(filterDate || filterYear || filterMonth || filterCategory) && (
+          {(filterDate || filterYear || filterMonth || filterMainCategory || filterSubCategory) && (
             <button
               onClick={clearAllFilters}
               className="mt-4 flex items-center space-x-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white text-sm rounded-lg transition"
