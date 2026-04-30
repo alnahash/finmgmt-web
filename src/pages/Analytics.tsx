@@ -508,7 +508,7 @@ export default function Analytics() {
         ) : (
           <>
             {/* Enhanced Metrics Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+            <div className="grid grid-cols-5 gap-4 mb-8">
               {/* Total Transactions */}
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
