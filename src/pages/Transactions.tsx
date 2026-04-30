@@ -959,7 +959,7 @@ export default function Transactions() {
                           )}
                         </button>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-300">{t.transaction_date}</td>
+                      <td className="px-4 py-3 text-sm text-slate-300 whitespace-nowrap">{t.transaction_date}</td>
                       <td className="px-4 py-3 text-sm text-white">{t.category_icon} {t.category_name}</td>
                       <td className="px-4 py-3 text-sm text-slate-400">{t.description || '-'}</td>
                       <td className="px-4 py-3 text-sm text-right text-white font-semibold">{formatAmount(t.amount)}</td>
