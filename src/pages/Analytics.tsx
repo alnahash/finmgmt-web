@@ -23,6 +23,10 @@ interface AnalyticsStats {
   topCategoryExpenseAmount: number
   topCategoryIncome: string
   topCategoryIncomeAmount: number
+  topSubCategoryExpense: string
+  topSubCategoryExpenseAmount: number
+  topSubCategoryIncome: string
+  topSubCategoryIncomeAmount: number
   daysTracked: number
   spendingTrend: number // percentage change from previous period
 }
@@ -54,6 +58,10 @@ export default function Analytics() {
     topCategoryExpenseAmount: 0,
     topCategoryIncome: '',
     topCategoryIncomeAmount: 0,
+    topSubCategoryExpense: '',
+    topSubCategoryExpenseAmount: 0,
+    topSubCategoryIncome: '',
+    topSubCategoryIncomeAmount: 0,
     daysTracked: 0,
     spendingTrend: 0,
   })
@@ -160,6 +168,10 @@ export default function Analytics() {
           topCategoryExpenseAmount: 0,
           topCategoryIncome: 'N/A',
           topCategoryIncomeAmount: 0,
+          topSubCategoryExpense: 'N/A',
+          topSubCategoryExpenseAmount: 0,
+          topSubCategoryIncome: 'N/A',
+          topSubCategoryIncomeAmount: 0,
           daysTracked: 0,
           spendingTrend: 0,
         })
@@ -259,6 +271,29 @@ export default function Analytics() {
         })
         .sort((a, b) => b.value - a.value)[0]
 
+      // Calculate top sub-categories (categories with parent_id)
+      const topExpenseSubCat = Array.from(categoryExpenseMap.entries())
+        .filter(([catId]) => categoryMap.get(catId)?.parent_id) // Only sub-categories
+        .map(([catId, data]) => {
+          const cat = categoryMap.get(catId)
+          return {
+            name: cat?.name || 'Uncategorized',
+            value: data.amount,
+          }
+        })
+        .sort((a, b) => b.value - a.value)[0]
+
+      const topIncomeSubCat = Array.from(categoryIncomeMap.entries())
+        .filter(([catId]) => categoryMap.get(catId)?.parent_id) // Only sub-categories
+        .map(([catId, data]) => {
+          const cat = categoryMap.get(catId)
+          return {
+            name: cat?.name || 'Uncategorized',
+            value: data.amount,
+          }
+        })
+        .sort((a, b) => b.value - a.value)[0]
+
       const daysTracked = uniqueDays.size
       const avgPerTransaction = txns.length > 0 ? totalSpent / txns.length : 0
 
@@ -270,6 +305,10 @@ export default function Analytics() {
         topCategoryExpenseAmount: parseFloat((topExpenseCat?.value || 0).toFixed(2)),
         topCategoryIncome: topIncomeCatData?.name || 'N/A',
         topCategoryIncomeAmount: parseFloat((topIncomeCatData?.value || 0).toFixed(2)),
+        topSubCategoryExpense: topExpenseSubCat?.name || 'N/A',
+        topSubCategoryExpenseAmount: parseFloat((topExpenseSubCat?.value || 0).toFixed(2)),
+        topSubCategoryIncome: topIncomeSubCat?.name || 'N/A',
+        topSubCategoryIncomeAmount: parseFloat((topIncomeSubCat?.value || 0).toFixed(2)),
         daysTracked,
         spendingTrend: 0, // TODO: Calculate trend from previous period
       })
@@ -441,6 +480,34 @@ export default function Analytics() {
                     <p className="text-2xl font-bold text-green-500 mt-2">{stats.topCategoryIncome}</p>
                     <p className="text-lg font-semibold text-white mt-1">
                       {getCurrencySymbol(currency)}{stats.topCategoryIncomeAmount.toFixed(2)}
+                    </p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-green-500/50" />
+                </div>
+              </div>
+
+              {/* Top Sub-Category Expense */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-400 text-sm font-medium">Top Sub-Category Expense</p>
+                    <p className="text-2xl font-bold text-orange-500 mt-2">{stats.topSubCategoryExpense}</p>
+                    <p className="text-lg font-semibold text-white mt-1">
+                      {getCurrencySymbol(currency)}{stats.topSubCategoryExpenseAmount.toFixed(2)}
+                    </p>
+                  </div>
+                  <Target className="w-8 h-8 text-orange-500/50" />
+                </div>
+              </div>
+
+              {/* Top Sub-Category Income */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-400 text-sm font-medium">Top Sub-Category Income</p>
+                    <p className="text-2xl font-bold text-green-500 mt-2">{stats.topSubCategoryIncome}</p>
+                    <p className="text-lg font-semibold text-white mt-1">
+                      {getCurrencySymbol(currency)}{stats.topSubCategoryIncomeAmount.toFixed(2)}
                     </p>
                   </div>
                   <DollarSign className="w-8 h-8 text-green-500/50" />
