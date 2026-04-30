@@ -37,7 +37,8 @@ export default function Transactions() {
   const [filterDate, setFilterDate] = useState('')
   const [filterYear, setFilterYear] = useState('')
   const [filterMonth, setFilterMonth] = useState('')
-  const [filterCategory, setFilterCategory] = useState('')
+  const [filterMainCategory, setFilterMainCategory] = useState('')
+  const [filterSubCategory, setFilterSubCategory] = useState('')
   const [importing, setImporting] = useState(false)
   const [showCurrencyModal, setShowCurrencyModal] = useState(false)
   const [currencyRates, setCurrencyRates] = useState({ USD: 1, AED: 1, BHD: 1 })
@@ -228,7 +229,23 @@ export default function Transactions() {
       const txnMonthPeriod = getMonthPeriodKey(t.transaction_date)
       if (txnMonthPeriod !== filterMonth) return false
     }
-    if (filterCategory && t.category_id !== filterCategory) return false
+
+    // Filter by main category and/or sub category
+    if (filterMainCategory || filterSubCategory) {
+      const txnCategory = categories.get(t.category_id)
+      if (!txnCategory) return false
+
+      // If sub-category is selected, match directly
+      if (filterSubCategory) {
+        if (t.category_id !== filterSubCategory) return false
+      }
+      // If only main category is selected, check if transaction belongs to that main category
+      else if (filterMainCategory) {
+        const txnMainCategoryId = txnCategory.parent_id ? txnCategory.parent_id : txnCategory.id
+        if (txnMainCategoryId !== filterMainCategory) return false
+      }
+    }
+
     return true
   })
 
@@ -294,11 +311,27 @@ export default function Transactions() {
       .reverse()
   }
 
+  // Get all main categories (categories without a parent_id)
+  const getMainCategories = () => {
+    return Array.from(categories.values())
+      .filter(cat => !cat.parent_id)
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  // Get sub-categories for a specific main category
+  const getSubCategories = (mainCategoryId: string) => {
+    if (!mainCategoryId) return []
+    return Array.from(categories.values())
+      .filter(cat => cat.parent_id === mainCategoryId)
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }
+
   const clearAllFilters = () => {
     setFilterDate('')
     setFilterYear('')
     setFilterMonth('')
-    setFilterCategory('')
+    setFilterMainCategory('')
+    setFilterSubCategory('')
     setSelectedIds(new Set())
   }
 
@@ -706,14 +739,34 @@ export default function Transactions() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-2">Category</label>
+              <label className="block text-xs font-medium text-slate-400 mb-2">Main Category</label>
               <select
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
+                value={filterMainCategory}
+                onChange={(e) => {
+                  setFilterMainCategory(e.target.value)
+                  setFilterSubCategory('') // Reset sub-category when main category changes
+                }}
                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-300 text-sm focus:outline-none focus:border-primary-500"
               >
-                <option value="">All categories</option>
-                {Array.from(categories.values()).map((cat) => (
+                <option value="">All main categories</option>
+                {getMainCategories().map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.icon} {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-2">Sub Category</label>
+              <select
+                value={filterSubCategory}
+                onChange={(e) => setFilterSubCategory(e.target.value)}
+                disabled={!filterMainCategory}
+                className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-300 text-sm focus:outline-none focus:border-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="">All sub-categories</option>
+                {filterMainCategory && getSubCategories(filterMainCategory).map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.icon} {cat.name}
                   </option>
