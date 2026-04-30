@@ -50,6 +50,7 @@ export default function Transactions() {
   const [deleting, setDeleting] = useState(false)
   const [deleteProgress, setDeleteProgress] = useState(0)
   const [deleteTotal, setDeleteTotal] = useState(0)
+  const [monthStartDay, setMonthStartDay] = useState(1)
 
   useEffect(() => {
     fetchData()
@@ -75,13 +76,14 @@ export default function Transactions() {
     setLoading(true)
 
     try {
-      // Fetch user currency preference
+      // Fetch user currency and month start day preferences
       const { data: profile } = await supabase
         .from('profiles')
-        .select('currency')
+        .select('currency, month_start_day')
         .eq('id', user.id)
         .single()
       if (profile?.currency) setUserCurrency(profile.currency)
+      if (profile?.month_start_day) setMonthStartDay(profile.month_start_day)
 
       // Fetch categories with parent info
       const { data: cats } = await supabase
@@ -223,8 +225,8 @@ export default function Transactions() {
       if (txnYear !== filterYear) return false
     }
     if (filterMonth) {
-      const txnMonth = String(new Date(t.transaction_date).getMonth() + 1).padStart(2, '0')
-      if (txnMonth !== filterMonth) return false
+      const txnMonthPeriod = getMonthPeriodKey(t.transaction_date)
+      if (txnMonthPeriod !== filterMonth) return false
     }
     if (filterCategory && t.category_id !== filterCategory) return false
     return true
@@ -236,6 +238,50 @@ export default function Transactions() {
       years.add(new Date(t.transaction_date).getFullYear().toString())
     })
     return Array.from(years).sort((a, b) => Number(b) - Number(a))
+  }
+
+  // Helper to get the month period key for a transaction date
+  // Returns format like "202404-25" meaning the period starting on the 25th
+  const getMonthPeriodKey = (dateStr: string): string => {
+    const date = new Date(dateStr)
+    const year = date.getFullYear()
+    let month = date.getMonth() + 1
+    const day = date.getDate()
+
+    // If the day is before the month start day, it belongs to the previous month's period
+    if (day < monthStartDay) {
+      month = month === 1 ? 12 : month - 1
+    }
+
+    return `${year}${String(month).padStart(2, '0')}-${monthStartDay}`
+  }
+
+  // Helper to get the period label (e.g., "Apr 25 - May 24")
+  const getPeriodLabel = (periodKey: string): string => {
+    if (!periodKey) return ''
+    const [yearMonth, startDay] = periodKey.split('-')
+    const year = parseInt(yearMonth.substring(0, 4))
+    const month = parseInt(yearMonth.substring(4, 6))
+
+    const startDate = new Date(year, month - 1, parseInt(startDay))
+    let endDate = new Date(year, month, parseInt(startDay) - 1)
+
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const startLabel = `${months[startDate.getMonth()]} ${startDate.getDate()}`
+    const endLabel = `${months[endDate.getMonth()]} ${endDate.getDate()}`
+
+    return `${startLabel} - ${endLabel}`
+  }
+
+  // Get unique month periods from transactions
+  const getMonthPeriodOptions = () => {
+    const periods = new Set<string>()
+    transactions.forEach((t) => {
+      periods.add(getMonthPeriodKey(t.transaction_date))
+    })
+    return Array.from(periods)
+      .sort()
+      .reverse()
   }
 
   const clearAllFilters = () => {
@@ -634,29 +680,16 @@ export default function Transactions() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-2">Month</label>
+              <label className="block text-xs font-medium text-slate-400 mb-2">Period</label>
               <select
                 value={filterMonth}
                 onChange={(e) => setFilterMonth(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-300 text-sm focus:outline-none focus:border-primary-500"
               >
-                <option value="">All months</option>
-                {[
-                  { val: '01', label: 'January' },
-                  { val: '02', label: 'February' },
-                  { val: '03', label: 'March' },
-                  { val: '04', label: 'April' },
-                  { val: '05', label: 'May' },
-                  { val: '06', label: 'June' },
-                  { val: '07', label: 'July' },
-                  { val: '08', label: 'August' },
-                  { val: '09', label: 'September' },
-                  { val: '10', label: 'October' },
-                  { val: '11', label: 'November' },
-                  { val: '12', label: 'December' },
-                ].map(({ val, label }) => (
-                  <option key={val} value={val}>
-                    {label}
+                <option value="">All periods</option>
+                {getMonthPeriodOptions().map((periodKey) => (
+                  <option key={periodKey} value={periodKey}>
+                    {getPeriodLabel(periodKey)}
                   </option>
                 ))}
               </select>
