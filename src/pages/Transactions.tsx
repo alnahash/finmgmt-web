@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState, useMemo } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
