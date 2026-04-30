@@ -18,7 +18,8 @@ interface AnalyticsStats {
   totalTransactions: number
   totalSpent: number
   avgPerTransaction: number
-  topCategory: string
+  topCategoryExpense: string
+  topCategoryIncome: string
   daysTracked: number
   spendingTrend: number // percentage change from previous period
 }
@@ -46,7 +47,8 @@ export default function Analytics() {
     totalTransactions: 0,
     totalSpent: 0,
     avgPerTransaction: 0,
-    topCategory: '',
+    topCategoryExpense: '',
+    topCategoryIncome: '',
     daysTracked: 0,
     spendingTrend: 0,
   })
@@ -148,7 +150,8 @@ export default function Analytics() {
           totalTransactions: 0,
           totalSpent: 0,
           avgPerTransaction: 0,
-          topCategory: 'N/A',
+          topCategoryExpense: 'N/A',
+          topCategoryIncome: 'N/A',
           daysTracked: 0,
           spendingTrend: 0,
         })
@@ -159,8 +162,9 @@ export default function Analytics() {
         return
       }
 
-      // Calculate category totals and statistics
-      const categoryTotals = new Map<string, { amount: number; count: number }>()
+      // Calculate category totals and statistics (separate income and expenses)
+      const categoryExpenseMap = new Map<string, { amount: number; count: number }>()
+      const categoryIncomeMap = new Map<string, { amount: number; count: number }>()
       const dailyData = new Map<string, number>()
       const uniqueDays = new Set<string>()
 
@@ -168,12 +172,22 @@ export default function Analytics() {
       txns.forEach((t) => {
         totalSpent += t.amount
 
-        // Category totals
-        const current = categoryTotals.get(t.category_id) || { amount: 0, count: 0 }
-        categoryTotals.set(t.category_id, {
-          amount: current.amount + t.amount,
-          count: current.count + 1,
-        })
+        // Separate income (negative) from expense (positive)
+        if (t.amount < 0) {
+          // Income transaction
+          const current = categoryIncomeMap.get(t.category_id) || { amount: 0, count: 0 }
+          categoryIncomeMap.set(t.category_id, {
+            amount: current.amount + Math.abs(t.amount),
+            count: current.count + 1,
+          })
+        } else {
+          // Expense transaction
+          const current = categoryExpenseMap.get(t.category_id) || { amount: 0, count: 0 }
+          categoryExpenseMap.set(t.category_id, {
+            amount: current.amount + t.amount,
+            count: current.count + 1,
+          })
+        }
 
         // Daily data
         const date = t.transaction_date
@@ -182,8 +196,8 @@ export default function Analytics() {
         uniqueDays.add(date)
       })
 
-      // Build pie chart data
-      const pieChartData = Array.from(categoryTotals.entries())
+      // Build pie chart data (expenses only)
+      const pieChartData = Array.from(categoryExpenseMap.entries())
         .map(([catId, data]) => {
           const cat = categoryMap.get(catId)
           return {
@@ -223,7 +237,17 @@ export default function Analytics() {
       setLineData(lineChartData)
 
       // Calculate enhanced statistics
-      const topCat = pieChartData[0]
+      const topExpenseCat = pieChartData.find(cat => cat.name !== 'Other')
+      const topIncomeCat = Array.from(categoryIncomeMap.entries())
+        .map(([catId, data]) => {
+          const cat = categoryMap.get(catId)
+          return {
+            name: cat?.name || 'Uncategorized',
+            value: data.amount,
+          }
+        })
+        .sort((a, b) => b.value - a.value)[0]
+
       const daysTracked = uniqueDays.size
       const avgPerTransaction = txns.length > 0 ? totalSpent / txns.length : 0
 
@@ -231,13 +255,14 @@ export default function Analytics() {
         totalTransactions: txns.length,
         totalSpent: parseFloat(totalSpent.toFixed(2)),
         avgPerTransaction: parseFloat(avgPerTransaction.toFixed(2)),
-        topCategory: topCat?.name || 'N/A',
+        topCategoryExpense: topExpenseCat?.name || 'N/A',
+        topCategoryIncome: topIncomeCat?.name || 'N/A',
         daysTracked,
         spendingTrend: 0, // TODO: Calculate trend from previous period
       })
 
-      // Build category spending data
-      const categorySpendingData = Array.from(categoryTotals.entries())
+      // Build category spending data (expenses only)
+      const categorySpendingData = Array.from(categoryExpenseMap.entries())
         .map(([catId, data]) => {
           const cat = categoryMap.get(catId)
           return {
@@ -266,7 +291,7 @@ export default function Analytics() {
           .map((budget) => {
             const catId = budget.category_id
             const cat = categoryMap.get(catId)
-            const spent = categoryTotals.get(catId)?.amount || 0
+            const spent = categoryExpenseMap.get(catId)?.amount || 0
             const budgetAmount = budget.amount
             const utilization = (spent / budgetAmount) * 100
 
@@ -277,7 +302,7 @@ export default function Analytics() {
               categoryIcon: cat?.icon || '📁',
               spent: parseFloat(spent.toFixed(2)),
               percentage: utilization,
-              transactionCount: categoryTotals.get(catId)?.count || 0,
+              transactionCount: categoryExpenseMap.get(catId)?.count || 0,
               budgetLimit: budgetAmount,
               budgetUtilization: parseFloat(utilization.toFixed(1)),
             }
@@ -381,14 +406,25 @@ export default function Analytics() {
                 </div>
               </div>
 
-              {/* Top Category */}
+              {/* Top Category Expense */}
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-medium">Top Category</p>
-                    <p className="text-2xl font-bold text-primary-500 mt-2">{stats.topCategory}</p>
+                    <p className="text-slate-400 text-sm font-medium">Top Category Expense</p>
+                    <p className="text-2xl font-bold text-orange-500 mt-2">{stats.topCategoryExpense}</p>
                   </div>
-                  <Target className="w-8 h-8 text-primary-500/50" />
+                  <Target className="w-8 h-8 text-orange-500/50" />
+                </div>
+              </div>
+
+              {/* Top Category Income */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-400 text-sm font-medium">Top Category Income</p>
+                    <p className="text-2xl font-bold text-green-500 mt-2">{stats.topCategoryIncome}</p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-green-500/50" />
                 </div>
               </div>
 
