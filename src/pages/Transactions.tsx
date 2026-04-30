@@ -3,6 +3,7 @@ import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { Plus, Trash2, Edit2, Filter, X, Upload, Download, Grid3x3, List as ListIcon, Table2, Calendar, BarChart3, CheckCircle2, Circle } from 'lucide-react'
+import { getPeriodLabel, getUniquePeriodKeys, getPeriodDateRange } from '../lib/utils'
 
 interface Transaction {
   id: string
@@ -57,6 +58,11 @@ export default function Transactions() {
   useEffect(() => {
     fetchData()
   }, [user])
+
+  // Clear month filter when monthStartDay changes, as period options would have changed
+  useEffect(() => {
+    setFilterMonth('')
+  }, [monthStartDay])
 
   // Close category dropdown when clicking outside
   useEffect(() => {
@@ -227,8 +233,8 @@ export default function Transactions() {
       if (txnYear !== filterYear) return false
     }
     if (filterMonth) {
-      const txnMonthPeriod = getMonthPeriodKey(t.transaction_date)
-      if (txnMonthPeriod !== filterMonth) return false
+      const { startDate, endDate } = getPeriodDateRange(filterMonth)
+      if (t.transaction_date < startDate || t.transaction_date > endDate) return false
     }
 
     // Filter by main category and/or sub category
@@ -258,68 +264,12 @@ export default function Transactions() {
     return Array.from(years).sort((a, b) => Number(b) - Number(a))
   }
 
-  // Helper to get the month period key for a transaction date
-  // Returns format like "202404-25" meaning the period starting on the 25th
-  const getMonthPeriodKey = (dateStr: string): string => {
-    const date = new Date(dateStr)
-    let year = date.getFullYear()
-    let month = date.getMonth() + 1
-    const day = date.getDate()
-
-    // If the day is before the month start day, it belongs to the previous month's period
-    if (day < monthStartDay) {
-      if (month === 1) {
-        month = 12
-        year = year - 1  // Go back a year when rolling from January to December
-      } else {
-        month = month - 1
-      }
-    }
-
-    return `${year}${String(month).padStart(2, '0')}-${monthStartDay}`
-  }
-
-  // Helper to get the period label (e.g., "Apr 25 - May 24")
-  const getPeriodLabel = (periodKey: string): string => {
-    if (!periodKey) return ''
-    const [yearMonth, startDay] = periodKey.split('-')
-    const year = parseInt(yearMonth.substring(0, 4))
-    const month = parseInt(yearMonth.substring(4, 6))
-
-    const startDate = new Date(year, month - 1, parseInt(startDay))
-    const endDate = new Date(year, month, parseInt(startDay) - 1)
-
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const startLabel = `${months[startDate.getMonth()]} ${startDate.getDate()}`
-    const endLabel = `${months[endDate.getMonth()]} ${endDate.getDate()}`
-
-    // Include year if period spans two different years
-    const endYear = endDate.getFullYear()
-    if (year !== endYear) {
-      return `${startLabel} ${year} - ${endLabel} ${endYear}`
-    }
-    return `${startLabel} - ${endLabel} ${year}`
-  }
-
-  // Get unique month periods from transactions
+  // Get unique month periods from transactions (uses shared utility with explicit monthStartDay)
   const getMonthPeriodOptions = () => {
-    // Collect all period keys
-    const periodSet = new Set<string>()
-
-    transactions.forEach((t) => {
-      if (t?.transaction_date) {
-        const key = getMonthPeriodKey(t.transaction_date)
-        if (key && key.trim()) {
-          periodSet.add(key)
-        }
-      }
-    })
-
-    // Convert to array, filter empties, sort in reverse
-    return Array.from(periodSet)
-      .filter(p => p && p.length > 0)
-      .sort()
-      .reverse()
+    return getUniquePeriodKeys(
+      transactions.map(t => t.transaction_date).filter(Boolean),
+      monthStartDay
+    )
   }
 
   // Get all main categories (categories without a parent_id)

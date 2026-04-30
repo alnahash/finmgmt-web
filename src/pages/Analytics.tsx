@@ -3,7 +3,7 @@ import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { getPeriodLabel, getPeriodDateRange, getUniquePeriodKeys, getCurrencySymbol } from '../lib/utils'
-import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
+import { BarChart, Bar, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { TrendingUp, Target, DollarSign, BarChart3, Calendar, AlertCircle } from 'lucide-react'
 
 interface Category {
@@ -31,8 +31,10 @@ interface AnalyticsStats {
   topSubCategoryIncomeAmount: number
   topSubCategoryByCount: string
   topSubCategoryByCountAmount: number
+  topSubCategoryByCountSpent: number
   topCategoryByCount: string
   topCategoryByCountAmount: number
+  topCategoryByCountSpent: number
   daysTracked: number
 }
 
@@ -71,8 +73,10 @@ export default function Analytics() {
     topSubCategoryIncomeAmount: 0,
     topSubCategoryByCount: '',
     topSubCategoryByCountAmount: 0,
+    topSubCategoryByCountSpent: 0,
     topCategoryByCount: '',
     topCategoryByCountAmount: 0,
+    topCategoryByCountSpent: 0,
     daysTracked: 0,
   })
   const [pieData, setPieData] = useState<any[]>([])
@@ -186,8 +190,10 @@ export default function Analytics() {
           topSubCategoryIncomeAmount: 0,
           topSubCategoryByCount: 'N/A',
           topSubCategoryByCountAmount: 0,
+          topSubCategoryByCountSpent: 0,
           topCategoryByCount: 'N/A',
           topCategoryByCountAmount: 0,
+          topCategoryByCountSpent: 0,
           daysTracked: 0,
         })
         setPieData([])
@@ -226,13 +232,13 @@ export default function Analytics() {
             amount: current.amount + t.amount,
             count: current.count + 1,
           })
-        }
 
-        // Daily data (including income and expenses)
-        const date = t.transaction_date
-        const current_daily = dailyData.get(date) || 0
-        dailyData.set(date, current_daily + t.amount)
-        uniqueDays.add(date)
+          // Daily data (expenses only for cumulative spending)
+          const date = t.transaction_date
+          const current_daily = dailyData.get(date) || 0
+          dailyData.set(date, current_daily + t.amount)
+          uniqueDays.add(date)
+        }
       })
 
       // Build pie chart data (expenses only)
@@ -353,22 +359,24 @@ export default function Analytics() {
           return {
             name: cat?.name || 'Uncategorized',
             count: data.count,
+            spent: data.amount,
           }
         })
         .sort((a, b) => b.count - a.count)[0]
 
       // Calculate top category by count (summing sub-category counts)
-      const categoryCountMap = new Map<string, { name: string; count: number }>()
+      const categoryCountMap = new Map<string, { name: string; count: number; spent: number }>()
       Array.from(categoryExpenseMap.entries()).forEach(([catId, data]) => {
         const cat = categoryMap.get(catId)
         const parentId = cat?.parent_id || catId
         const parentCat = categoryMap.get(parentId)
         const parentName = parentCat?.name || cat?.name || 'Uncategorized'
 
-        const current = categoryCountMap.get(parentId) || { name: parentName, count: 0 }
+        const current = categoryCountMap.get(parentId) || { name: parentName, count: 0, spent: 0 }
         categoryCountMap.set(parentId, {
           name: parentName,
           count: current.count + data.count,
+          spent: current.spent + data.amount,
         })
       })
 
@@ -396,8 +404,10 @@ export default function Analytics() {
         topSubCategoryIncomeAmount: parseFloat((topIncomeSubCat?.value || 0).toFixed(2)),
         topSubCategoryByCount: topSubCategoryByCount?.name || 'N/A',
         topSubCategoryByCountAmount: topSubCategoryByCount?.count || 0,
+        topSubCategoryByCountSpent: parseFloat((topSubCategoryByCount?.spent || 0).toFixed(2)),
         topCategoryByCount: topCategoryByCountData?.name || 'N/A',
         topCategoryByCountAmount: topCategoryByCountData?.count || 0,
+        topCategoryByCountSpent: parseFloat((topCategoryByCountData?.spent || 0).toFixed(2)),
         daysTracked,
       })
 
@@ -513,10 +523,21 @@ export default function Analytics() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-medium">Total Transactions</p>
-                    <p className="text-3xl font-bold text-white mt-2">{stats.totalTransactions}</p>
+                    <p className="text-slate-400 text-xs font-medium">Total Transactions</p>
+                    <p className="text-xl font-bold text-white mt-1">{stats.totalTransactions}</p>
                   </div>
                   <BarChart3 className="w-8 h-8 text-primary-500/50" />
+                </div>
+              </div>
+
+              {/* Days Tracked */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-400 text-xs font-medium">Days Tracked</p>
+                    <p className="text-xl font-bold text-white mt-1">{stats.daysTracked}</p>
+                  </div>
+                  <Calendar className="w-8 h-8 text-green-500/50" />
                 </div>
               </div>
 
@@ -524,8 +545,8 @@ export default function Analytics() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-medium">Total Spent</p>
-                    <p className="text-3xl font-bold text-white mt-2">
+                    <p className="text-slate-400 text-xs font-medium">Total Spent</p>
+                    <p className="text-xl font-bold text-white mt-1">
                       {getCurrencySymbol(currency)}{stats.totalSpent.toFixed(2)}
                     </p>
                   </div>
@@ -537,8 +558,8 @@ export default function Analytics() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-medium">Saving this Month</p>
-                    <p className={`text-3xl font-bold mt-2 ${stats.savingsThisMonth >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    <p className="text-slate-400 text-xs font-medium">Total Saving</p>
+                    <p className={`text-xl font-bold mt-1 ${stats.savingsThisMonth >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                       {getCurrencySymbol(currency)}{stats.savingsThisMonth.toFixed(2)}
                     </p>
                   </div>
@@ -550,8 +571,8 @@ export default function Analytics() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-medium">Avg Per Transaction</p>
-                    <p className="text-3xl font-bold text-white mt-2">
+                    <p className="text-slate-400 text-xs font-medium">Avg Per Transaction</p>
+                    <p className="text-xl font-bold text-white mt-1">
                       {getCurrencySymbol(currency)}{stats.avgPerTransaction.toFixed(2)}
                     </p>
                   </div>
@@ -563,9 +584,9 @@ export default function Analytics() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-medium">Top Category Expense</p>
-                    <p className="text-2xl font-bold text-orange-500 mt-2">{stats.topCategoryExpense}</p>
-                    <p className="text-lg font-semibold text-white mt-1">
+                    <p className="text-slate-400 text-xs font-medium">Top Category Expense</p>
+                    <p className="text-sm font-bold text-orange-500 mt-1">{stats.topCategoryExpense}</p>
+                    <p className="text-xs font-semibold text-white mt-1">
                       {getCurrencySymbol(currency)}{stats.topCategoryExpenseAmount.toFixed(2)}
                     </p>
                   </div>
@@ -577,9 +598,9 @@ export default function Analytics() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-medium">Top Category Income</p>
-                    <p className="text-2xl font-bold text-green-500 mt-2">{stats.topCategoryIncome}</p>
-                    <p className="text-lg font-semibold text-white mt-1">
+                    <p className="text-slate-400 text-xs font-medium">Top Category Income</p>
+                    <p className="text-sm font-bold text-green-500 mt-1">{stats.topCategoryIncome}</p>
+                    <p className="text-xs font-semibold text-white mt-1">
                       {getCurrencySymbol(currency)}{stats.topCategoryIncomeAmount.toFixed(2)}
                     </p>
                   </div>
@@ -591,9 +612,9 @@ export default function Analytics() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-medium">Top Sub-Category Expense</p>
-                    <p className="text-2xl font-bold text-orange-500 mt-2">{stats.topSubCategoryExpense}</p>
-                    <p className="text-lg font-semibold text-white mt-1">
+                    <p className="text-slate-400 text-xs font-medium">Top Sub-Category Expense</p>
+                    <p className="text-sm font-bold text-orange-500 mt-1">{stats.topSubCategoryExpense}</p>
+                    <p className="text-xs font-semibold text-white mt-1">
                       {getCurrencySymbol(currency)}{stats.topSubCategoryExpenseAmount.toFixed(2)}
                     </p>
                   </div>
@@ -605,9 +626,9 @@ export default function Analytics() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-medium">Top Sub-Category Income</p>
-                    <p className="text-2xl font-bold text-green-500 mt-2">{stats.topSubCategoryIncome}</p>
-                    <p className="text-lg font-semibold text-white mt-1">
+                    <p className="text-slate-400 text-xs font-medium">Top Sub-Category Income</p>
+                    <p className="text-sm font-bold text-green-500 mt-1">{stats.topSubCategoryIncome}</p>
+                    <p className="text-xs font-semibold text-white mt-1">
                       {getCurrencySymbol(currency)}{stats.topSubCategoryIncomeAmount.toFixed(2)}
                     </p>
                   </div>
@@ -615,24 +636,16 @@ export default function Analytics() {
                 </div>
               </div>
 
-              {/* Days Tracked */}
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-slate-400 text-sm font-medium">Days Tracked</p>
-                    <p className="text-3xl font-bold text-white mt-2">{stats.daysTracked}</p>
-                  </div>
-                  <Calendar className="w-8 h-8 text-green-500/50" />
-                </div>
-              </div>
-
               {/* Top Sub-Category by Count */}
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-medium">Most Frequent Sub-Category</p>
-                    <p className="text-xl font-bold text-orange-400 mt-2">{stats.topSubCategoryByCount}</p>
-                    <p className="text-sm text-slate-300 mt-1">{stats.topSubCategoryByCountAmount} Transactions</p>
+                    <p className="text-slate-400 text-xs font-medium">Most Frequent Sub-Category</p>
+                    <p className="text-sm font-bold text-orange-400 mt-1">{stats.topSubCategoryByCount}</p>
+                    <p className="text-xs text-slate-300 mt-1">{stats.topSubCategoryByCountAmount} Transactions</p>
+                    <p className="text-xs font-semibold text-white mt-1">
+                      {getCurrencySymbol(currency)}{stats.topSubCategoryByCountSpent.toFixed(2)}
+                    </p>
                   </div>
                   <BarChart3 className="w-8 h-8 text-orange-500/50" />
                 </div>
@@ -642,9 +655,12 @@ export default function Analytics() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-medium">Most Frequent Main Category</p>
-                    <p className="text-xl font-bold text-blue-400 mt-2">{stats.topCategoryByCount}</p>
-                    <p className="text-sm text-slate-300 mt-1">{stats.topCategoryByCountAmount} Transactions</p>
+                    <p className="text-slate-400 text-xs font-medium">Most Frequent Main Category</p>
+                    <p className="text-sm font-bold text-blue-400 mt-1">{stats.topCategoryByCount}</p>
+                    <p className="text-xs text-slate-300 mt-1">{stats.topCategoryByCountAmount} Transactions</p>
+                    <p className="text-xs font-semibold text-white mt-1">
+                      {getCurrencySymbol(currency)}{stats.topCategoryByCountSpent.toFixed(2)}
+                    </p>
                   </div>
                   <BarChart3 className="w-8 h-8 text-blue-500/50" />
                 </div>
@@ -655,27 +671,34 @@ export default function Analytics() {
             {/* Charts Section */}
             {pieData.length > 0 && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                {/* Pie Chart */}
+                {/* Bar Chart - Spending by Category */}
                 <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-                  <h2 className="text-lg font-semibold text-white mb-4">Spending by Category</h2>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={pieData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, value }) => `${name}: ${getCurrencySymbol(currency)}${value}`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
+                  <h2 className="text-lg font-semibold text-white mb-4">Spending by Category (High to Low)</h2>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <BarChart
+                      data={pieData}
+                      margin={{ top: 20, right: 30, left: 0, bottom: 80 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis
+                        dataKey="name"
+                        stroke="#94a3b8"
+                        angle={-45}
+                        textAnchor="end"
+                        height={120}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis stroke="#94a3b8" />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
+                        formatter={(value) => `${getCurrencySymbol(currency)}${value}`}
+                      />
+                      <Bar dataKey="value" fill="#f97316" radius={[8, 8, 0, 0]}>
                         {pieData.map((_, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => `${getCurrencySymbol(currency)}${value}`} />
-                    </PieChart>
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
 
@@ -685,7 +708,7 @@ export default function Analytics() {
                     <TrendingUp className="w-5 h-5" />
                     <span>Daily Cumulative Spending</span>
                   </h2>
-                  <ResponsiveContainer width="100%" height={300}>
+                  <ResponsiveContainer width="100%" height={350}>
                     <LineChart data={lineData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis dataKey="date" stroke="#94a3b8" />

@@ -62,13 +62,32 @@ export const getPeriodDateRange = (periodKey: string): { startDate: string; endD
   const [yearMonth, startDay] = periodKey.split('-')
   const year = parseInt(yearMonth.substring(0, 4))
   const month = parseInt(yearMonth.substring(4, 6))
+  const day = parseInt(startDay)
 
-  const startDate = new Date(year, month - 1, parseInt(startDay))
-  const endDate = new Date(year, month, parseInt(startDay) - 1)
+  // Build start date string directly (no timezone conversion)
+  const startDateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+  // Calculate end date (last day of the period, one day before next period starts)
+  let endMonth = month
+  let endYear = year
+  let endDay = day - 1
+
+  if (endDay < 1) {
+    endMonth--
+    if (endMonth < 1) {
+      endMonth = 12
+      endYear--
+    }
+    // Get the last day of the previous month
+    const lastDayOfMonth = new Date(endYear, endMonth, 0).getDate()
+    endDay = lastDayOfMonth
+  }
+
+  const endDateStr = `${endYear}-${String(endMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`
 
   return {
-    startDate: startDate.toISOString().split('T')[0],
-    endDate: endDate.toISOString().split('T')[0],
+    startDate: startDateStr,
+    endDate: endDateStr,
   }
 }
 
