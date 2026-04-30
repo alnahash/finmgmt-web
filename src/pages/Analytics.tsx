@@ -20,7 +20,9 @@ interface AnalyticsStats {
   totalSpent: number
   avgPerTransaction: number
   topCategoryExpense: string
+  topCategoryExpenseAmount: number
   topCategoryIncome: string
+  topCategoryIncomeAmount: number
   daysTracked: number
   spendingTrend: number // percentage change from previous period
 }
@@ -49,7 +51,9 @@ export default function Analytics() {
     totalSpent: 0,
     avgPerTransaction: 0,
     topCategoryExpense: '',
+    topCategoryExpenseAmount: 0,
     topCategoryIncome: '',
+    topCategoryIncomeAmount: 0,
     daysTracked: 0,
     spendingTrend: 0,
   })
@@ -153,7 +157,9 @@ export default function Analytics() {
           totalSpent: 0,
           avgPerTransaction: 0,
           topCategoryExpense: 'N/A',
+          topCategoryExpenseAmount: 0,
           topCategoryIncome: 'N/A',
+          topCategoryIncomeAmount: 0,
           daysTracked: 0,
           spendingTrend: 0,
         })
@@ -243,7 +249,7 @@ export default function Analytics() {
 
       // Calculate enhanced statistics
       const topExpenseCat = pieChartData.find(cat => cat.name !== 'Other')
-      const topIncomeCat = Array.from(categoryIncomeMap.entries())
+      const topIncomeCatData = Array.from(categoryIncomeMap.entries())
         .map(([catId, data]) => {
           const cat = categoryMap.get(catId)
           return {
@@ -261,7 +267,9 @@ export default function Analytics() {
         totalSpent: parseFloat(totalSpent.toFixed(2)),
         avgPerTransaction: parseFloat(avgPerTransaction.toFixed(2)),
         topCategoryExpense: topExpenseCat?.name || 'N/A',
-        topCategoryIncome: topIncomeCat?.name || 'N/A',
+        topCategoryExpenseAmount: parseFloat((topExpenseCat?.value || 0).toFixed(2)),
+        topCategoryIncome: topIncomeCatData?.name || 'N/A',
+        topCategoryIncomeAmount: parseFloat((topIncomeCatData?.value || 0).toFixed(2)),
         daysTracked,
         spendingTrend: 0, // TODO: Calculate trend from previous period
       })
@@ -417,6 +425,9 @@ export default function Analytics() {
                   <div>
                     <p className="text-slate-400 text-sm font-medium">Top Category Expense</p>
                     <p className="text-2xl font-bold text-orange-500 mt-2">{stats.topCategoryExpense}</p>
+                    <p className="text-lg font-semibold text-white mt-1">
+                      {getCurrencySymbol(currency)}{stats.topCategoryExpenseAmount.toFixed(2)}
+                    </p>
                   </div>
                   <Target className="w-8 h-8 text-orange-500/50" />
                 </div>
@@ -428,6 +439,9 @@ export default function Analytics() {
                   <div>
                     <p className="text-slate-400 text-sm font-medium">Top Category Income</p>
                     <p className="text-2xl font-bold text-green-500 mt-2">{stats.topCategoryIncome}</p>
+                    <p className="text-lg font-semibold text-white mt-1">
+                      {getCurrencySymbol(currency)}{stats.topCategoryIncomeAmount.toFixed(2)}
+                    </p>
                   </div>
                   <DollarSign className="w-8 h-8 text-green-500/50" />
                 </div>
