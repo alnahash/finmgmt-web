@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { Plus, Trash2, Edit2, Filter, X, Upload, Download, Grid3x3, List as ListIcon, Table2, Calendar, BarChart3, CheckCircle2, Circle } from 'lucide-react'
+import { Plus, Trash2, Edit2, Filter, X, Upload, Download, Grid3x3, List as ListIcon, Table2, Calendar, BarChart3, CheckCircle2, Circle, Tag } from 'lucide-react'
 import { getPeriodLabel, getUniquePeriodKeys, getPeriodDateRange } from '../lib/utils'
 
 interface Transaction {
@@ -54,6 +54,10 @@ export default function Transactions() {
   const [deleteProgress, setDeleteProgress] = useState(0)
   const [deleteTotal, setDeleteTotal] = useState(0)
   const [monthStartDay, setMonthStartDay] = useState(1)
+  const [showBulkCategoryModal, setShowBulkCategoryModal] = useState(false)
+  const [bulkCategoryId, setBulkCategoryId] = useState('')
+  const [bulkCategorySearch, setBulkCategorySearch] = useState('')
+  const [bulkUpdating, setBulkUpdating] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -386,6 +390,29 @@ export default function Transactions() {
     }
   }
 
+  const handleBulkCategoryChange = async () => {
+    if (!bulkCategoryId || selectedIds.size === 0) return
+    setBulkUpdating(true)
+    try {
+      const ids = Array.from(selectedIds)
+      const { error } = await supabase
+        .from('transactions')
+        .update({ category_id: bulkCategoryId })
+        .in('id', ids)
+        .eq('user_id', user?.id)
+      if (error) throw error
+      setSelectedIds(new Set())
+      setShowBulkCategoryModal(false)
+      setBulkCategoryId('')
+      setBulkCategorySearch('')
+      await fetchData()
+    } catch (error) {
+      console.error('Error updating categories:', error)
+    } finally {
+      setBulkUpdating(false)
+    }
+  }
+
   const fetchExchangeRates = async () => {
     try {
       // open.er-api.com — free, no API key required
@@ -706,6 +733,86 @@ export default function Transactions() {
           </div>
         )}
 
+        {/* Bulk Category Change Modal */}
+        {showBulkCategoryModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-white">
+                  Change Category
+                  <span className="ml-2 text-sm font-normal text-slate-400">({selectedIds.size} transaction{selectedIds.size !== 1 ? 's' : ''})</span>
+                </h2>
+                <button
+                  onClick={() => setShowBulkCategoryModal(false)}
+                  className="text-slate-400 hover:text-white text-2xl leading-none"
+                >×</button>
+              </div>
+
+              <div className="mb-4" data-category-dropdown>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Select new category</label>
+                <input
+                  type="text"
+                  placeholder="Search category..."
+                  value={bulkCategorySearch}
+                  onChange={(e) => setBulkCategorySearch(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-primary-500 mb-2"
+                  autoFocus
+                />
+                <div className="max-h-60 overflow-y-auto rounded-lg border border-slate-600 bg-slate-700">
+                  {Array.from(categories.values())
+                    .filter(cat => cat.parent_id)
+                    .map(cat => ({ cat, score: bulkCategorySearch === '' ? Infinity : getFuzzyScore(cat.name, bulkCategorySearch) }))
+                    .filter(({ score }) => score > 0)
+                    .sort(({ score: a }, { score: b }) => b - a)
+                    .map(({ cat }) => {
+                      const parent = categories.get(cat.parent_id!)
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setBulkCategoryId(cat.id)}
+                          className={`w-full px-3 py-2.5 text-left hover:bg-slate-600 transition flex items-center space-x-3 ${bulkCategoryId === cat.id ? 'bg-primary-500/20 border-l-2 border-primary-500' : ''}`}
+                        >
+                          <span className="text-lg">{cat.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white text-sm">{cat.name}</p>
+                            <p className="text-slate-400 text-xs">{parent?.icon} {parent?.name}</p>
+                          </div>
+                          {bulkCategoryId === cat.id && <span className="text-primary-500 text-sm">✓</span>}
+                        </button>
+                      )
+                    })}
+                  {Array.from(categories.values()).filter(c => c.parent_id && (bulkCategorySearch === '' || getFuzzyScore(c.name, bulkCategorySearch) > 0)).length === 0 && (
+                    <p className="px-3 py-3 text-slate-400 text-sm">No categories found</p>
+                  )}
+                </div>
+              </div>
+
+              {bulkCategoryId && (
+                <p className="text-sm text-slate-300 mb-4">
+                  Selected: <span className="text-white font-medium">{categories.get(bulkCategoryId)?.icon} {categories.get(bulkCategoryId)?.name}</span>
+                </p>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleBulkCategoryChange}
+                  disabled={!bulkCategoryId || bulkUpdating}
+                  className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 rounded-lg transition"
+                >
+                  {bulkUpdating ? 'Updating...' : `Apply to ${selectedIds.size} transaction${selectedIds.size !== 1 ? 's' : ''}`}
+                </button>
+                <button
+                  onClick={() => setShowBulkCategoryModal(false)}
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Filter */}
         <div className="mb-6 bg-slate-800 border border-slate-700 rounded-lg p-4">
           <div className="flex items-center space-x-3 mb-4">
@@ -821,13 +928,22 @@ export default function Transactions() {
                 </span>
               </button>
               {selectedIds.size > 0 && (
-                <button
-                  onClick={deleteSelected}
-                  className="flex items-center space-x-2 px-3 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-300 hover:text-red-200 rounded-lg transition text-sm font-medium"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span>Delete selected</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => { setBulkCategoryId(''); setBulkCategorySearch(''); setShowBulkCategoryModal(true) }}
+                    className="flex items-center space-x-2 px-3 py-2 bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 hover:text-blue-200 rounded-lg transition text-sm font-medium"
+                  >
+                    <Tag className="w-4 h-4" />
+                    <span>Change category</span>
+                  </button>
+                  <button
+                    onClick={deleteSelected}
+                    className="flex items-center space-x-2 px-3 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-300 hover:text-red-200 rounded-lg transition text-sm font-medium"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete selected</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
