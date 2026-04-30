@@ -4,7 +4,7 @@ import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { getPeriodLabel, getPeriodDateRange, getUniquePeriodKeys, getCurrencySymbol } from '../lib/utils'
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
-import { TrendingUp, TrendingDown, Target, DollarSign, BarChart3, Calendar, AlertCircle } from 'lucide-react'
+import { TrendingUp, Target, DollarSign, BarChart3, Calendar, AlertCircle } from 'lucide-react'
 
 interface Category {
   id: string
@@ -17,7 +17,7 @@ interface Category {
 
 interface AnalyticsStats {
   totalTransactions: number
-  totalSpent: number
+  totalSpent: number // Only expenses
   avgPerTransaction: number
   topCategoryExpense: string
   topCategoryExpenseAmount: number
@@ -27,8 +27,11 @@ interface AnalyticsStats {
   topSubCategoryExpenseAmount: number
   topSubCategoryIncome: string
   topSubCategoryIncomeAmount: number
+  topSubCategoryByCount: string
+  topSubCategoryByCountAmount: number
+  topCategoryByCount: string
+  topCategoryByCountAmount: number
   daysTracked: number
-  spendingTrend: number // percentage change from previous period
 }
 
 interface CategorySpending {
@@ -62,8 +65,11 @@ export default function Analytics() {
     topSubCategoryExpenseAmount: 0,
     topSubCategoryIncome: '',
     topSubCategoryIncomeAmount: 0,
+    topSubCategoryByCount: '',
+    topSubCategoryByCountAmount: 0,
+    topCategoryByCount: '',
+    topCategoryByCountAmount: 0,
     daysTracked: 0,
-    spendingTrend: 0,
   })
   const [pieData, setPieData] = useState<any[]>([])
   const [lineData, setLineData] = useState<any[]>([])
@@ -172,8 +178,11 @@ export default function Analytics() {
           topSubCategoryExpenseAmount: 0,
           topSubCategoryIncome: 'N/A',
           topSubCategoryIncomeAmount: 0,
+          topSubCategoryByCount: 'N/A',
+          topSubCategoryByCountAmount: 0,
+          topCategoryByCount: 'N/A',
+          topCategoryByCountAmount: 0,
           daysTracked: 0,
-          spendingTrend: 0,
         })
         setPieData([])
         setLineData([])
@@ -188,10 +197,8 @@ export default function Analytics() {
       const dailyData = new Map<string, number>()
       const uniqueDays = new Set<string>()
 
-      let totalSpent = 0
+      let totalSpent = 0 // Total expenses only
       txns.forEach((t) => {
-        totalSpent += t.amount
-
         // Separate by category type (income vs expense)
         const cat = categoryMap.get(t.category_id)
         const isIncome = cat?.type === 'income'
@@ -205,6 +212,7 @@ export default function Analytics() {
           })
         } else {
           // Expense transaction
+          totalSpent += t.amount
           const current = categoryExpenseMap.get(t.category_id) || { amount: 0, count: 0 }
           categoryExpenseMap.set(t.category_id, {
             amount: current.amount + t.amount,
@@ -259,16 +267,51 @@ export default function Analytics() {
 
       setLineData(lineChartData)
 
-      // Calculate enhanced statistics
-      const topExpenseCat = pieChartData.find(cat => cat.name !== 'Other')
-      const topIncomeCatData = Array.from(categoryIncomeMap.entries())
-        .map(([catId, data]) => {
-          const cat = categoryMap.get(catId)
-          return {
-            name: cat?.name || 'Uncategorized',
-            value: data.amount,
-          }
+      // Calculate top MAIN categories (sum of all their sub-categories)
+      const mainCategoryExpenseMap = new Map<string, { amount: number; parentName: string }>()
+      const mainCategoryIncomeMap = new Map<string, { amount: number; parentName: string }>()
+
+      // Group expenses by parent category
+      Array.from(categoryExpenseMap.entries()).forEach(([catId, data]) => {
+        const cat = categoryMap.get(catId)
+        const parentId = cat?.parent_id || catId // If no parent, use own id (main category)
+        const parentCat = categoryMap.get(parentId)
+        const parentName = parentCat?.name || cat?.name || 'Uncategorized'
+
+        const current = mainCategoryExpenseMap.get(parentId) || { amount: 0, parentName }
+        mainCategoryExpenseMap.set(parentId, {
+          amount: current.amount + data.amount,
+          parentName,
         })
+      })
+
+      // Group income by parent category
+      Array.from(categoryIncomeMap.entries()).forEach(([catId, data]) => {
+        const cat = categoryMap.get(catId)
+        const parentId = cat?.parent_id || catId // If no parent, use own id (main category)
+        const parentCat = categoryMap.get(parentId)
+        const parentName = parentCat?.name || cat?.name || 'Uncategorized'
+
+        const current = mainCategoryIncomeMap.get(parentId) || { amount: 0, parentName }
+        mainCategoryIncomeMap.set(parentId, {
+          amount: current.amount + data.amount,
+          parentName,
+        })
+      })
+
+      // Get top main categories
+      const topExpenseCat = Array.from(mainCategoryExpenseMap.entries())
+        .map(([, data]) => ({
+          name: data.parentName,
+          value: data.amount,
+        }))
+        .sort((a, b) => b.value - a.value)[0]
+
+      const topIncomeCatData = Array.from(mainCategoryIncomeMap.entries())
+        .map(([, data]) => ({
+          name: data.parentName,
+          value: data.amount,
+        }))
         .sort((a, b) => b.value - a.value)[0]
 
       // Calculate top sub-categories (categories with parent_id)
@@ -294,6 +337,37 @@ export default function Analytics() {
         })
         .sort((a, b) => b.value - a.value)[0]
 
+      // Calculate top categories by transaction count
+      const topSubCategoryByCount = Array.from(categoryExpenseMap.entries())
+        .filter(([catId]) => categoryMap.get(catId)?.parent_id) // Only sub-categories
+        .map(([catId, data]) => {
+          const cat = categoryMap.get(catId)
+          return {
+            name: cat?.name || 'Uncategorized',
+            count: data.count,
+          }
+        })
+        .sort((a, b) => b.count - a.count)[0]
+
+      // Calculate top category by count (summing sub-category counts)
+      const categoryCountMap = new Map<string, { name: string; count: number }>()
+      Array.from(categoryExpenseMap.entries()).forEach(([catId, data]) => {
+        const cat = categoryMap.get(catId)
+        const parentId = cat?.parent_id || catId
+        const parentCat = categoryMap.get(parentId)
+        const parentName = parentCat?.name || cat?.name || 'Uncategorized'
+
+        const current = categoryCountMap.get(parentId) || { name: parentName, count: 0 }
+        categoryCountMap.set(parentId, {
+          name: parentName,
+          count: current.count + data.count,
+        })
+      })
+
+      const topCategoryByCountData = Array.from(categoryCountMap.entries())
+        .map(([, data]) => data)
+        .sort((a, b) => b.count - a.count)[0]
+
       const daysTracked = uniqueDays.size
       const avgPerTransaction = txns.length > 0 ? totalSpent / txns.length : 0
 
@@ -309,8 +383,11 @@ export default function Analytics() {
         topSubCategoryExpenseAmount: parseFloat((topExpenseSubCat?.value || 0).toFixed(2)),
         topSubCategoryIncome: topIncomeSubCat?.name || 'N/A',
         topSubCategoryIncomeAmount: parseFloat((topIncomeSubCat?.value || 0).toFixed(2)),
+        topSubCategoryByCount: topSubCategoryByCount?.name || 'N/A',
+        topSubCategoryByCountAmount: topSubCategoryByCount?.count || 0,
+        topCategoryByCount: topCategoryByCountData?.name || 'N/A',
+        topCategoryByCountAmount: topCategoryByCountData?.count || 0,
         daysTracked,
-        spendingTrend: 0, // TODO: Calculate trend from previous period
       })
 
       // Build category spending data (expenses only)
@@ -420,7 +497,7 @@ export default function Analytics() {
         ) : (
           <>
             {/* Enhanced Metrics Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               {/* Total Transactions */}
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
@@ -525,24 +602,30 @@ export default function Analytics() {
                 </div>
               </div>
 
-              {/* Spending Trend */}
+              {/* Top Sub-Category by Count */}
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-medium">Spending Trend</p>
-                    <div className="flex items-center space-x-2 mt-2">
-                      <p className="text-2xl font-bold text-white">
-                        {stats.spendingTrend > 0 ? '+' : ''}{stats.spendingTrend.toFixed(1)}%
-                      </p>
-                    </div>
+                    <p className="text-slate-400 text-sm font-medium">Most Frequent Sub-Category</p>
+                    <p className="text-xl font-bold text-orange-400 mt-2">{stats.topSubCategoryByCount}</p>
+                    <p className="text-sm text-slate-300 mt-1">{stats.topSubCategoryByCountAmount} Transactions</p>
                   </div>
-                  {stats.spendingTrend > 0 ? (
-                    <TrendingUp className="w-8 h-8 text-red-500/50" />
-                  ) : (
-                    <TrendingDown className="w-8 h-8 text-green-500/50" />
-                  )}
+                  <BarChart3 className="w-8 h-8 text-orange-500/50" />
                 </div>
               </div>
+
+              {/* Top Category by Count */}
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-slate-400 text-sm font-medium">Most Frequent Main Category</p>
+                    <p className="text-xl font-bold text-blue-400 mt-2">{stats.topCategoryByCount}</p>
+                    <p className="text-sm text-slate-300 mt-1">{stats.topCategoryByCountAmount} Transactions</p>
+                  </div>
+                  <BarChart3 className="w-8 h-8 text-blue-500/50" />
+                </div>
+              </div>
+
             </div>
 
             {/* Charts Section */}

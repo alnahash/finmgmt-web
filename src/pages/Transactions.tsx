@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { Plus, Trash2, Edit2, Filter, X, Upload, Grid3x3, List as ListIcon, Table2, Calendar, BarChart3, CheckCircle2, Circle } from 'lucide-react'
+import { Plus, Trash2, Edit2, Filter, X, Upload, Download, Grid3x3, List as ListIcon, Table2, Calendar, BarChart3, CheckCircle2, Circle } from 'lucide-react'
 
 interface Transaction {
   id: string
@@ -477,7 +477,8 @@ export default function Transactions() {
       const amountIdx = header.findIndex(h => h.toLowerCase() === 'amount')
       const descIdx = header.findIndex(h => h.toLowerCase() === 'description')
       const catIdx = header.findIndex(h => h.toLowerCase() === 'category')
-      const detailsIdx = header.findIndex(h => h.toLowerCase().includes('detail'))
+      const currencyIdx = header.findIndex(h => h.toLowerCase() === 'currency')
+      const detailsIdx = header.findIndex(h => h.toLowerCase().includes('detail') || h.toLowerCase() === 'notes')
 
       if (dateIdx === -1 || amountIdx === -1 || descIdx === -1) {
         alert('CSV must have Date, Amount, and Description columns')
@@ -499,11 +500,17 @@ export default function Transactions() {
         const desc = cells[descIdx]
         const cat = catIdx !== -1 ? cells[catIdx] : null
         const details = detailsIdx !== -1 ? cells[detailsIdx] : ''
+        const currencyStr = currencyIdx !== -1 ? cells[currencyIdx]?.toUpperCase().trim() : ''
 
-        // Detect currency from details or description
+        // Detect currency from Currency column first, then details or description
         let currency = 'BHD'
-        if (details.includes('USD') || desc.includes('USD')) currency = 'USD'
-        else if (details.includes('AED') || desc.includes('AED')) currency = 'AED'
+        if (currencyStr && ['USD', 'AED', 'BHD'].includes(currencyStr)) {
+          currency = currencyStr
+        } else if (details.includes('USD') || desc.includes('USD')) {
+          currency = 'USD'
+        } else if (details.includes('AED') || desc.includes('AED')) {
+          currency = 'AED'
+        }
 
         if (currency === 'USD') currencyDetected.USD = true
         if (currency === 'AED') currencyDetected.AED = true
@@ -602,12 +609,51 @@ export default function Transactions() {
     }
   }
 
+  const downloadTemplate = () => {
+    // Get sample categories for the template
+    const sampleCategories = Array.from(categories.values())
+      .filter(cat => cat.parent_id) // Only sub-categories
+      .slice(0, 5)
+      .map(cat => cat.name)
+
+    const defaultCategories = sampleCategories.length > 0
+      ? sampleCategories
+      : ['Groceries', 'Transport', 'Entertainment', 'Utilities', 'Dining']
+
+    // Create CSV template with example data
+    // Required fields: Date, Amount, Description
+    // Optional fields: Category, Currency, Notes
+    const csvContent = `Date,Amount,Description,Category,Currency,Notes
+2026-04-25,150.00,Weekly groceries,${defaultCategories[0]},BHD,Carrefour shopping
+2026-04-26,45.50,Taxi fare,${defaultCategories[1]},BHD,To work
+2026-04-27,85.00,Cinema tickets,${defaultCategories[2]},BHD,Movie night
+2026-04-28,120.00,Online shopping,${defaultCategories[3]},BHD,Amazon purchase
+2026-04-29,200.00,Restaurant dinner,${defaultCategories[4]},BHD,Family dinner`
+
+    // Create a blob and download
+    const element = document.createElement('a')
+    element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvContent))
+    element.setAttribute('download', 'transaction_template.csv')
+    element.style.display = 'none'
+    document.body.appendChild(element)
+    element.click()
+    document.body.removeChild(element)
+  }
+
   return (
     <Layout>
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-white">Transactions</h1>
           <div className="flex gap-2">
+            <button
+              onClick={downloadTemplate}
+              className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg transition text-sm"
+              title="Download CSV template"
+            >
+              <Download className="w-4 h-4" />
+              <span>Template</span>
+            </button>
             <label className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg transition text-sm cursor-pointer">
               <Upload className="w-4 h-4" />
               {importing ? 'Importing...' : 'Import CSV'}
