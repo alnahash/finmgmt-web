@@ -275,20 +275,23 @@ export default function Transactions() {
 
   // Get unique month periods from transactions
   const getMonthPeriodOptions = () => {
-    // Use a Map for absolute deduplication by key string
-    const periodMap = new Map<string, boolean>()
+    // Collect all period keys
+    const periodSet = new Set<string>()
 
     transactions.forEach((t) => {
-      if (!t.transaction_date) return
-      const key = getMonthPeriodKey(t.transaction_date)
-      if (key) {
-        periodMap.set(key, true)
+      if (t?.transaction_date) {
+        const key = getMonthPeriodKey(t.transaction_date)
+        if (key && key.trim()) {
+          periodSet.add(key)
+        }
       }
     })
 
-    // Get unique keys and sort
-    const uniquePeriods = Array.from(periodMap.keys()).sort().reverse()
-    return uniquePeriods
+    // Convert to array, filter empties, sort in reverse
+    return Array.from(periodSet)
+      .filter(p => p && p.length > 0)
+      .sort()
+      .reverse()
   }
 
   const clearAllFilters = () => {
