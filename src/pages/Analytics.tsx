@@ -12,6 +12,7 @@ interface Category {
   icon: string
   color: string
   parent_id?: string
+  type?: 'expense' | 'income'
 }
 
 interface AnalyticsStats {
@@ -90,7 +91,7 @@ export default function Analytics() {
       // Fetch categories
       const { data: cats } = await supabase
         .from('categories')
-        .select('id, name, icon, color, parent_id')
+        .select('id, name, icon, color, parent_id, type')
         .eq('user_id', user.id)
 
       const catMap = new Map()
@@ -101,6 +102,7 @@ export default function Analytics() {
           icon: cat.icon,
           color: cat.color || '#f97316',
           parent_id: cat.parent_id,
+          type: cat.type || 'expense',
         })
       })
       setCategoryMap(catMap)
@@ -162,7 +164,7 @@ export default function Analytics() {
         return
       }
 
-      // Calculate category totals and statistics (separate income and expenses)
+      // Calculate category totals and statistics (separate income and expenses by category type)
       const categoryExpenseMap = new Map<string, { amount: number; count: number }>()
       const categoryIncomeMap = new Map<string, { amount: number; count: number }>()
       const dailyData = new Map<string, number>()
@@ -172,12 +174,15 @@ export default function Analytics() {
       txns.forEach((t) => {
         totalSpent += t.amount
 
-        // Separate income (negative) from expense (positive)
-        if (t.amount < 0) {
+        // Separate by category type (income vs expense)
+        const cat = categoryMap.get(t.category_id)
+        const isIncome = cat?.type === 'income'
+
+        if (isIncome) {
           // Income transaction
           const current = categoryIncomeMap.get(t.category_id) || { amount: 0, count: 0 }
           categoryIncomeMap.set(t.category_id, {
-            amount: current.amount + Math.abs(t.amount),
+            amount: current.amount + t.amount,
             count: current.count + 1,
           })
         } else {
@@ -189,7 +194,7 @@ export default function Analytics() {
           })
         }
 
-        // Daily data
+        // Daily data (including income and expenses)
         const date = t.transaction_date
         const current_daily = dailyData.get(date) || 0
         dailyData.set(date, current_daily + t.amount)
