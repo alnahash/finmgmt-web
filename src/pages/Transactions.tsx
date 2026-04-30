@@ -1205,10 +1205,11 @@ export default function Transactions() {
                     required={!formData.category_id}
                   />
 
-                  {/* Dropdown Results */}
+                  {/* Dropdown Results - Only Sub Categories */}
                   {showCategoryDropdown && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-slate-700 border border-slate-600 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
                       {Array.from(categories.values())
+                        .filter((cat) => cat.parent_id) // Only show sub-categories
                         .map((cat) => ({
                           cat,
                           score:
@@ -1216,32 +1217,40 @@ export default function Transactions() {
                         }))
                         .filter(({ score }) => score > 0 || categorySearch === '')
                         .sort(({ score: scoreA }, { score: scoreB }) => scoreB - scoreA)
-                        .map(({ cat }) => (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => {
-                              setFormData({ ...formData, category_id: cat.id })
-                              setCategorySearch(cat.name)
-                              setShowCategoryDropdown(false)
-                            }}
-                            className={`w-full px-3 py-2 text-left hover:bg-slate-600 transition flex items-center space-x-2 ${
-                              formData.category_id === cat.id ? 'bg-primary-500/20 border-l-2 border-primary-500' : ''
-                            }`}
-                          >
-                            <span className="text-lg">{cat.icon}</span>
-                            <span className="text-white">{cat.name}</span>
-                            {formData.category_id === cat.id && (
-                              <span className="ml-auto text-primary-500">✓</span>
-                            )}
-                          </button>
-                        ))}
-                      {Array.from(categories.values()).filter(
-                        (cat) =>
-                          categorySearch === '' ||
-                          getFuzzyScore(cat.name, categorySearch) > 0
-                      ).length === 0 && (
-                        <div className="px-3 py-2 text-slate-400 text-sm">No categories found</div>
+                        .map(({ cat }) => {
+                          const parentCategory = categories.get(cat.parent_id!)
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => {
+                                setFormData({ ...formData, category_id: cat.id })
+                                setCategorySearch(cat.name)
+                                setShowCategoryDropdown(false)
+                              }}
+                              className={`w-full px-3 py-2 text-left hover:bg-slate-600 transition flex items-center space-x-2 ${
+                                formData.category_id === cat.id ? 'bg-primary-500/20 border-l-2 border-primary-500' : ''
+                              }`}
+                            >
+                              <span className="text-lg">{cat.icon}</span>
+                              <div className="flex flex-col">
+                                <span className="text-white">{cat.name}</span>
+                                <span className="text-xs text-slate-400">{parentCategory?.icon} {parentCategory?.name}</span>
+                              </div>
+                              {formData.category_id === cat.id && (
+                                <span className="ml-auto text-primary-500">✓</span>
+                              )}
+                            </button>
+                          )
+                        })}
+                      {Array.from(categories.values())
+                        .filter((cat) => cat.parent_id)
+                        .filter(
+                          (cat) =>
+                            categorySearch === '' ||
+                            getFuzzyScore(cat.name, categorySearch) > 0
+                        ).length === 0 && (
+                        <div className="px-3 py-2 text-slate-400 text-sm">No sub-categories found</div>
                       )}
                     </div>
                   )}
