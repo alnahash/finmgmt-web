@@ -25,10 +25,19 @@ export const AuthContext = createContext<{
   isAdmin: false,
 })
 
+export const ThemeContext = createContext<{
+  theme: 'light' | 'dark'
+  setTheme: (theme: 'light' | 'dark') => void
+}>({
+  theme: 'dark',
+  setTheme: () => {},
+})
+
 function App() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [theme, setThemeState] = useState<'light' | 'dark'>('dark')
 
   useEffect(() => {
     // Check if user is logged in
@@ -44,6 +53,9 @@ function App() {
     } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user || null)
       checkAdmin(session?.user?.email)
+      if (session?.user) {
+        fetchAndSetTheme(session.user.id)
+      }
       if (event === 'SIGNED_IN' && session?.user) {
         supabase.from('login_events').insert({
           user_id: session.user.id,
@@ -61,6 +73,36 @@ function App() {
     setIsAdmin(email ? admins.includes(email.toLowerCase()) : false)
   }
 
+  const fetchAndSetTheme = async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('theme')
+        .eq('id', userId)
+        .single()
+
+      if (data?.theme) {
+        setThemeState(data.theme)
+      }
+    } catch (error) {
+      console.error('Error fetching theme:', error)
+    }
+  }
+
+  const setTheme = (newTheme: 'light' | 'dark') => {
+    setThemeState(newTheme)
+  }
+
+  // Apply theme to HTML element
+  useEffect(() => {
+    const htmlElement = document.documentElement
+    if (theme === 'light') {
+      htmlElement.classList.remove('dark')
+    } else {
+      htmlElement.classList.add('dark')
+    }
+  }, [theme])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-950">
@@ -73,9 +115,10 @@ function App() {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin }}>
-      <BrowserRouter>
-        <Routes>
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      <AuthContext.Provider value={{ user, loading, isAdmin }}>
+        <BrowserRouter>
+          <Routes>
           {!user ? (
             <>
               <Route path="/login" element={<Login />} />
@@ -96,8 +139,9 @@ function App() {
             </>
           )}
         </Routes>
-      </BrowserRouter>
-    </AuthContext.Provider>
+        </BrowserRouter>
+      </AuthContext.Provider>
+    </ThemeContext.Provider>
   )
 }
 

@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react'
-import { AuthContext } from '../App'
+import { AuthContext, ThemeContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { Save, LogOut } from 'lucide-react'
@@ -17,6 +17,7 @@ interface Profile {
 
 export default function Settings() {
   const { user } = useContext(AuthContext)
+  const { setTheme } = useContext(ThemeContext)
   const navigate = useNavigate()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -70,6 +71,10 @@ export default function Settings() {
         })
         .eq('id', user.id)
 
+      // Update theme in context if it changed
+      if (profile.theme) {
+        setTheme(profile.theme)
+      }
       setMessage('Settings saved successfully!')
       setTimeout(() => setMessage(''), 3000)
     } catch (error) {

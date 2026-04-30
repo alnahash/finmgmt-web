@@ -9,3 +9,15 @@
 body {
   @apply bg-slate-950 text-slate-100;
 }
+
+/* Light mode - invert colors for a quick light theme */
+html:not(.dark) {
+  filter: invert(1) hue-rotate(180deg);
+  color-scheme: light;
+}
+
+html:not(.dark) img,
+html:not(.dark) video,
+html:not(.dark) [style*="background-image"] {
+  filter: invert(1) hue-rotate(180deg);
+}
