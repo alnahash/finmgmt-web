@@ -273,21 +273,23 @@ export default function Transactions() {
     return `${startLabel} - ${endLabel}`
   }
 
-  // Memoize period options to prevent duplicates from multiple renders
-  const periodOptions = useMemo(() => {
-    const periods = new Set<string>()
+  // Get unique month periods from transactions
+  const getMonthPeriodOptions = () => {
+    // Use a Map for absolute deduplication by key string
+    const periodMap = new Map<string, boolean>()
+
     transactions.forEach((t) => {
+      if (!t.transaction_date) return
       const key = getMonthPeriodKey(t.transaction_date)
-      if (key && key.trim() && key.includes('-')) {
-        periods.add(key)
+      if (key) {
+        periodMap.set(key, true)
       }
     })
-    const uniquePeriods = Array.from(periods).filter(p => p && p.trim())
-    return uniquePeriods.sort().reverse()
-  }, [transactions, monthStartDay])
 
-  // Get unique month periods from transactions (using memoized value)
-  const getMonthPeriodOptions = () => periodOptions
+    // Get unique keys and sort
+    const uniquePeriods = Array.from(periodMap.keys()).sort().reverse()
+    return uniquePeriods
+  }
 
   const clearAllFilters = () => {
     setFilterDate('')
