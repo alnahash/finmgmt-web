@@ -828,7 +828,7 @@ export default function Analytics() {
                   <h2 className="text-lg font-semibold text-white">
                     Sub Category Breakdown
                     <span className="text-sm text-slate-400 ml-2">
-                      ({showAllSubCategories ? categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length : Math.min(10, categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length)} shown)
+                      ({showAllSubCategories ? categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length : Math.min(5, categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length)} shown)
                     </span>
                   </h2>
                 </div>
@@ -847,7 +847,7 @@ export default function Analytics() {
                     <tbody>
                       {categorySpending
                         .filter(cat => categoryMap.get(cat.categoryId)?.parent_id)
-                        .slice(0, showAllSubCategories ? undefined : 10)
+                        .slice(0, showAllSubCategories ? undefined : 5)
                         .map((cat) => {
                           const parentId = categoryMap.get(cat.categoryId)?.parent_id
                           const parentCategory = parentId ? categoryMap.get(parentId) : null
@@ -882,7 +882,7 @@ export default function Analytics() {
                 </div>
 
                 {/* Show More Button */}
-                {categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length > 10 && (
+                {categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length > 5 && (
                   <div className="mt-4 flex justify-center">
                     <button
                       onClick={() => setShowAllSubCategories(!showAllSubCategories)}
