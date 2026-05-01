@@ -9,7 +9,7 @@ import {
   formatPeriodLabel,
   type PeriodType
 } from '../lib/utils'
-import { BarChart, Bar, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
+import { BarChart, Bar, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceDot } from 'recharts'
 import { TrendingUp, Target, BarChart3, Calendar, AlertCircle, ChevronDown } from 'lucide-react'
 
 interface Category {
@@ -33,6 +33,15 @@ interface CategorySpending {
   budgetUtilization?: number
 }
 
+interface TrendPoint {
+  periodLabel: string
+  periodKey: string
+  amount: number
+  previousAmount: number
+  changePercent: number
+  changeColor: 'green' | 'red' | 'neutral'
+}
+
 export default function Analytics() {
   const { user } = useContext(AuthContext)
 
@@ -49,6 +58,12 @@ export default function Analytics() {
   const [budgetStatus, setBudgetStatus] = useState<CategorySpending[]>([])
   const [currency, setCurrency] = useState('USD')
   const [categoryMap, setCategoryMap] = useState<Map<string, Category>>(new Map())
+
+  // Category Spending Trends state
+  const [selectedCategoryForTrend, setSelectedCategoryForTrend] = useState<Category | null>(null)
+  const [trendPeriodRange, setTrendPeriodRange] = useState<3 | 6 | 12>(6)
+  const [trendData, setTrendData] = useState<TrendPoint[]>([])
+  const [allTransactionDates, setAllTransactionDates] = useState<string[]>([])
 
   // Fetch initial data
   useEffect(() => {
@@ -85,6 +100,13 @@ export default function Analytics() {
       fetchAnalytics()
     }
   }, [selectedPeriod, user])
+
+  // Fetch category trends when category or range changes
+  useEffect(() => {
+    if (selectedCategoryForTrend && user && allTransactionDates.length > 0) {
+      fetchCategoryTrend()
+    }
+  }, [selectedCategoryForTrend, trendPeriodRange, user, allTransactionDates])
 
   const fetchInitialData = async () => {
     if (!user) return
@@ -130,8 +152,10 @@ export default function Analytics() {
 
       const monthStartDayToUse = profile?.month_start_day || 1
       if (allTxns && allTxns.length > 0) {
+        const txnDates = allTxns.map((t) => t.transaction_date)
+        setAllTransactionDates(txnDates)
         const availablePeriods = getUniquePeriodKeysByType(
-          allTxns.map((t) => t.transaction_date),
+          txnDates,
           periodType,
           monthStartDayToUse
         )
@@ -336,6 +360,69 @@ export default function Analytics() {
     }
   }
 
+  const fetchCategoryTrend = async () => {
+    if (!user || !selectedCategoryForTrend) return
+
+    try {
+      // Get unique periods based on current period type (monthly for trends)
+      const generatedPeriods = getUniquePeriodKeysByType(
+        allTransactionDates,
+        'monthly',
+        monthStartDay
+      )
+
+      // Get last N periods (3, 6, or 12)
+      const periodsToFetch = generatedPeriods
+        .slice(0, trendPeriodRange)
+        .reverse() // Reverse to get oldest first for charting
+
+      const trendPoints: TrendPoint[] = []
+      let previousAmount = 0
+
+      // Fetch spending for each period
+      for (const period of periodsToFetch) {
+        const { startDate, endDate } = getPeriodDateRangeByType(period, 'monthly')
+
+        const { data: txns } = await supabase
+          .from('transactions')
+          .select('amount')
+          .eq('user_id', user.id)
+          .eq('category_id', selectedCategoryForTrend.id)
+          .gte('transaction_date', startDate)
+          .lte('transaction_date', endDate)
+
+        const amount = txns?.reduce((sum, t) => sum + t.amount, 0) || 0
+        const changePercent = previousAmount && previousAmount > 0
+          ? ((amount - previousAmount) / previousAmount) * 100
+          : 0
+
+        let changeColor: 'green' | 'red' | 'neutral' = 'neutral'
+        if (previousAmount === 0) {
+          changeColor = 'neutral'
+        } else if (amount < previousAmount) {
+          changeColor = 'green'
+        } else if (amount > previousAmount) {
+          changeColor = 'red'
+        }
+
+        trendPoints.push({
+          periodLabel: formatPeriodLabel(period, 'monthly'),
+          periodKey: period,
+          amount,
+          previousAmount,
+          changePercent,
+          changeColor,
+        })
+
+        previousAmount = amount
+      }
+
+      setTrendData(trendPoints)
+    } catch (error) {
+      console.error('Error fetching category trend:', error)
+    }
+  }
+
   const getBudgetStatusColor = (utilization: number) => {
     if (utilization >= 95) return 'bg-red-500'
     if (utilization >= 75) return 'bg-yellow-500'
@@ -407,6 +494,146 @@ export default function Analytics() {
           </div>
         ) : (
           <>
+            {/* Category Spending Trends Section */}
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
+              <div className="flex items-center space-x-2 mb-6">
+                <TrendingUp className="w-5 h-5 text-primary-500" />
+                <h2 className="text-lg font-semibold text-white">Category Spending Trends</h2>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                {/* Category Selector */}
+                <div className="flex-1">
+                  <label className="block text-sm text-slate-400 mb-2">Select Category</label>
+                  <select
+                    value={selectedCategoryForTrend?.id || ''}
+                    onChange={(e) => {
+                      const catId = e.target.value
+                      if (catId) {
+                        const cat = categoryMap.get(catId)
+                        setSelectedCategoryForTrend(cat || null)
+                      } else {
+                        setSelectedCategoryForTrend(null)
+                      }
+                    }}
+                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                  >
+                    <option value="">Choose a category...</option>
+                    {categorySpending.map((cat) => (
+                      <option key={cat.categoryId} value={cat.categoryId}>
+                        {cat.categoryIcon} {cat.categoryName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Period Range Selector */}
+                <div className="flex flex-col justify-end gap-2">
+                  <label className="text-sm text-slate-400">Period Range</label>
+                  <div className="flex gap-2">
+                    {([3, 6, 12] as const).map((range) => (
+                      <button
+                        key={range}
+                        onClick={() => setTrendPeriodRange(range)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                          trendPeriodRange === range
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-slate-700 text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {range}mo
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Trend Chart */}
+              {selectedCategoryForTrend && trendData.length > 0 ? (
+                <div>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <LineChart data={trendData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis
+                        dataKey="periodLabel"
+                        stroke="#94a3b8"
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis stroke="#94a3b8" />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
+                        formatter={(value: any) => `${getCurrencySymbol(currency)}${typeof value === 'number' ? value.toFixed(2) : parseFloat(value as string).toFixed(2)}`}
+                        labelFormatter={(label: any) => `${label}`}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="amount"
+                        stroke={selectedCategoryForTrend.color || '#f97316'}
+                        strokeWidth={2}
+                        isAnimationActive={false}
+                      />
+                      {/* Color-coded dots for trend direction */}
+                      {trendData.map((point, idx) => (
+                        <ReferenceDot
+                          key={idx}
+                          x={point.periodLabel}
+                          y={point.amount}
+                          r={5}
+                          fill={
+                            point.changeColor === 'green'
+                              ? '#10b981'
+                              : point.changeColor === 'red'
+                              ? '#ef4444'
+                              : '#94a3b8'
+                          }
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+
+                  {/* Trend Stats */}
+                  <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-slate-700 rounded-lg p-4">
+                      <p className="text-xs text-slate-400 mb-1">Average Spending</p>
+                      <p className="text-lg font-semibold text-white">
+                        {getCurrencySymbol(currency)}
+                        {(trendData.reduce((sum, p) => sum + p.amount, 0) / trendData.length).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="bg-slate-700 rounded-lg p-4">
+                      <p className="text-xs text-slate-400 mb-1">Highest Month</p>
+                      <p className="text-lg font-semibold text-white">
+                        {getCurrencySymbol(currency)}
+                        {Math.max(...trendData.map((p) => p.amount)).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="bg-slate-700 rounded-lg p-4">
+                      <p className="text-xs text-slate-400 mb-1">Trend</p>
+                      <p className={`text-lg font-semibold ${
+                        trendData.length > 1 && trendData[trendData.length - 1].changeColor === 'green'
+                          ? 'text-green-400'
+                          : trendData.length > 1 && trendData[trendData.length - 1].changeColor === 'red'
+                          ? 'text-red-400'
+                          : 'text-slate-400'
+                      }`}>
+                        {trendData.length > 1 && trendData[trendData.length - 1].changePercent !== 0
+                          ? `${trendData[trendData.length - 1].changePercent > 0 ? '↑' : '↓'} ${Math.abs(trendData[trendData.length - 1].changePercent).toFixed(1)}%`
+                          : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : selectedCategoryForTrend ? (
+                <div className="text-center py-12">
+                  <p className="text-slate-400">No spending data available for this category in the selected period range</p>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-slate-400">Select a category to view spending trends</p>
+                </div>
+              )}
+            </div>
+
             {/* Charts Section */}
             {pieData.length > 0 && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
