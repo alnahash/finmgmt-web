@@ -323,12 +323,13 @@ export default function Analytics() {
 
       setCategorySpending(categorySpendingData)
 
-      // Fetch and calculate budget status
+      // Fetch and calculate budget status (including recurring budgets)
+      // Get both specific period budgets and recurring budgets
       const { data: budgets } = await supabase
         .from('budgets')
         .select('*')
         .eq('user_id', user.id)
-        .eq('month_period_key', selectedPeriod)
+        .or(`month_period_key.eq.${selectedPeriod},is_recurring.eq.true`)
 
       if (budgets && budgets.length > 0) {
         const budgetStatusData = budgets
