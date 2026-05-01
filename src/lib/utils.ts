@@ -151,3 +151,195 @@ export const getCurrencySymbol = (currency: string = 'USD'): string => {
   // Format 0 to get the currency symbol
   return formatter.format(0).replace(/[\d.,]/g, '').trim()
 }
+
+// Period type utilities for different time granularities
+export type PeriodType = 'yearly' | 'quarterly' | 'monthly' | 'weekly' | 'daily' | 'custom'
+
+/**
+ * Generate yearly period key (e.g., "2025")
+ */
+export const getYearlyPeriodKey = (dateStr: string): string => {
+  const date = new Date(dateStr)
+  return date.getFullYear().toString()
+}
+
+/**
+ * Generate quarterly period key (e.g., "2025-Q1")
+ */
+export const getQuarterlyPeriodKey = (dateStr: string): string => {
+  const date = new Date(dateStr)
+  const year = date.getFullYear()
+  const quarter = Math.floor(date.getMonth() / 3) + 1
+  return `${year}-Q${quarter}`
+}
+
+/**
+ * Generate weekly period key (e.g., "2025-W15" for week 15)
+ */
+export const getWeeklyPeriodKey = (dateStr: string): string => {
+  const date = new Date(dateStr)
+  const startOfYear = new Date(date.getFullYear(), 0, 1)
+  const diff = date.getTime() - startOfYear.getTime()
+  const oneWeek = 7 * 24 * 60 * 60 * 1000
+  const week = Math.floor(diff / oneWeek) + 1
+  return `${date.getFullYear()}-W${String(week).padStart(2, '0')}`
+}
+
+/**
+ * Generate daily period key (e.g., "2025-03-15")
+ */
+export const getDailyPeriodKey = (dateStr: string): string => {
+  const date = new Date(dateStr)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Generate period key based on period type
+ */
+export const getPeriodKeyByType = (dateStr: string, periodType: PeriodType, monthStartDay: number = 1): string => {
+  switch (periodType) {
+    case 'yearly':
+      return getYearlyPeriodKey(dateStr)
+    case 'quarterly':
+      return getQuarterlyPeriodKey(dateStr)
+    case 'monthly':
+      return getMonthPeriodKey(dateStr, monthStartDay)
+    case 'weekly':
+      return getWeeklyPeriodKey(dateStr)
+    case 'daily':
+      return getDailyPeriodKey(dateStr)
+    case 'custom':
+      return getMonthPeriodKey(dateStr, monthStartDay)
+    default:
+      return getMonthPeriodKey(dateStr, monthStartDay)
+  }
+}
+
+/**
+ * Get date range for yearly period (e.g., "2025" -> Jan 1 - Dec 31)
+ */
+export const getYearlyDateRange = (periodKey: string): { startDate: string; endDate: string } => {
+  const year = parseInt(periodKey)
+  return {
+    startDate: `${year}-01-01`,
+    endDate: `${year}-12-31`,
+  }
+}
+
+/**
+ * Get date range for quarterly period (e.g., "2025-Q1" -> Jan 1 - Mar 31)
+ */
+export const getQuarterlyDateRange = (periodKey: string): { startDate: string; endDate: string } => {
+  const [year, quarter] = periodKey.split('-')
+  const q = parseInt(quarter.replace('Q', ''))
+  const startMonth = (q - 1) * 3 + 1
+  const endMonth = q * 3
+
+  const startDate = `${year}-${String(startMonth).padStart(2, '0')}-01`
+  const lastDay = new Date(parseInt(year), endMonth, 0).getDate()
+  const endDate = `${year}-${String(endMonth).padStart(2, '0')}-${lastDay}`
+
+  return { startDate, endDate }
+}
+
+/**
+ * Get date range for weekly period (e.g., "2025-W15")
+ */
+export const getWeeklyDateRange = (periodKey: string): { startDate: string; endDate: string } => {
+  const [yearStr, weekStr] = periodKey.split('-')
+  const year = parseInt(yearStr)
+  const week = parseInt(weekStr.replace('W', ''))
+
+  const startOfYear = new Date(year, 0, 1)
+  const daysToAdd = (week - 1) * 7
+  const startDate = new Date(startOfYear.getTime() + daysToAdd * 24 * 60 * 60 * 1000)
+  const endDate = new Date(startDate.getTime() + 6 * 24 * 60 * 60 * 1000)
+
+  const startDateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
+  const endDateStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`
+
+  return { startDate: startDateStr, endDate: endDateStr }
+}
+
+/**
+ * Get date range for daily period (e.g., "2025-03-15")
+ */
+export const getDailyDateRange = (periodKey: string): { startDate: string; endDate: string } => {
+  return { startDate: periodKey, endDate: periodKey }
+}
+
+/**
+ * Get date range based on period type
+ */
+export const getPeriodDateRangeByType = (
+  periodKey: string,
+  periodType: PeriodType
+): { startDate: string; endDate: string } => {
+  switch (periodType) {
+    case 'yearly':
+      return getYearlyDateRange(periodKey)
+    case 'quarterly':
+      return getQuarterlyDateRange(periodKey)
+    case 'weekly':
+      return getWeeklyDateRange(periodKey)
+    case 'daily':
+      return getDailyDateRange(periodKey)
+    case 'monthly':
+    case 'custom':
+      return getPeriodDateRange(periodKey)
+    default:
+      return getPeriodDateRange(periodKey)
+  }
+}
+
+/**
+ * Format period label based on period type
+ */
+export const formatPeriodLabel = (periodKey: string, periodType: PeriodType): string => {
+  const { startDate, endDate } = getPeriodDateRangeByType(periodKey, periodType)
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+  switch (periodType) {
+    case 'yearly':
+      return periodKey
+    case 'quarterly': {
+      const [year, quarter] = periodKey.split('-')
+      return `${quarter} ${year}`
+    }
+    case 'weekly': {
+      const [year, week] = periodKey.split('-')
+      const weekNum = week.replace('W', '')
+      return `Week ${weekNum}, ${year}`
+    }
+    case 'daily': {
+      const date = new Date(periodKey)
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    }
+    case 'monthly':
+    case 'custom':
+      return getPeriodLabel(periodKey)
+    default:
+      return getPeriodLabel(periodKey)
+  }
+}
+
+/**
+ * Get unique period keys based on period type from a list of dates
+ */
+export const getUniquePeriodKeysByType = (dates: string[], periodType: PeriodType, monthStartDay: number = 1): string[] => {
+  const periodSet = new Set<string>()
+
+  dates.forEach((dateStr) => {
+    if (dateStr) {
+      const key = getPeriodKeyByType(dateStr, periodType, monthStartDay)
+      if (key && key.trim()) {
+        periodSet.add(key)
+      }
+    }
+  })
+
+  return Array.from(periodSet)
+    .filter((p) => p && p.length > 0)
+    .sort()
+    .reverse()
+}
