@@ -218,7 +218,8 @@ export default function Budgets() {
                 <Info className="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-slate-300">
                   <p className="font-medium text-white mb-1">How budgets work:</p>
-                  <p>Set a spending limit for a category. Enable "Apply to all periods" to use the same budget for every month/cycle, or leave it off for a one-time budget for a specific period.</p>
+                  <p><span className="text-primary-300">Frequency:</span> Choose the budget type (Daily, Weekly, Monthly, etc.)</p>
+                  <p className="mt-2"><span className="text-primary-300">Recurring:</span> Enable to apply the same budget to ALL periods of that frequency. Disable to set a budget for just one specific period.</p>
                 </div>
               </div>
 
@@ -273,25 +274,6 @@ export default function Budgets() {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">{selectedFrequency.charAt(0).toUpperCase() + selectedFrequency.slice(1)} Period</label>
-                  <select
-                    value={formData.month_period_key}
-                    onChange={(e) =>
-                      setFormData({ ...formData, month_period_key: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                    required
-                  >
-                    <option value="">Select {selectedFrequency}</option>
-                    {availablePeriods.map((period) => (
-                      <option key={period} value={period}>
-                        {formatPeriodLabel(period, selectedFrequency)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
                 <div className="flex items-end">
                   <label className="flex items-center space-x-2 cursor-pointer">
                     <input
@@ -305,6 +287,27 @@ export default function Budgets() {
                     <span className="text-sm font-medium text-slate-300">Recurring</span>
                   </label>
                 </div>
+
+                {!formData.is_recurring && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-2">Specific {selectedFrequency.charAt(0).toUpperCase() + selectedFrequency.slice(1)}</label>
+                    <select
+                      value={formData.month_period_key}
+                      onChange={(e) =>
+                        setFormData({ ...formData, month_period_key: e.target.value })
+                      }
+                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                      required
+                    >
+                      <option value="">Select {selectedFrequency}</option>
+                      {availablePeriods.map((period) => (
+                        <option key={period} value={period}>
+                          {formatPeriodLabel(period, selectedFrequency)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="flex space-x-2 pt-2">
