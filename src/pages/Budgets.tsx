@@ -7,11 +7,12 @@ import { getCurrencySymbol, getUniquePeriodKeysByType } from '../lib/utils'
 
 interface Budget {
   id: string
+  user_id: string
   category_id: string
   amount: number
-  month_period_key: string
-  is_recurring: boolean
-  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+  month: number
+  year: number
+  created_at?: string
 }
 
 interface Category {
@@ -29,7 +30,7 @@ interface Profile {
 
 interface CategoryWithBudget {
   category: Category
-  budgets: Map<string, Budget> // Map by frequency
+  budget?: Budget // Single budget per category (for current month)
 }
 
 interface GroupedCategory {
@@ -41,17 +42,8 @@ interface BudgetFormData {
   id?: string
   category_id?: string
   amount: string
-  month_period_key?: string
-  is_recurring?: boolean
-  frequency?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
-}
-
-const FREQUENCY_COLORS: Record<string, string> = {
-  daily: '#f97316', // orange
-  weekly: '#10b981', // green
-  monthly: '#3b82f6', // blue
-  quarterly: '#06b6d4', // cyan
-  yearly: '#a855f7', // purple
+  month?: number
+  year?: number
 }
 
 export default function Budgets() {
@@ -63,9 +55,8 @@ export default function Budgets() {
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([])
 
   // UI State
-  const [frequencyFilter, setFrequencyFilter] = useState('all')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
-  const [editingCategory, setEditingCategory] = useState<string | null>(null)
+  const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null)
   const [editFormData, setEditFormData] = useState<BudgetFormData>({ amount: '' })
   const [showCopyConfirm, setShowCopyConfirm] = useState(false)
 
@@ -133,15 +124,21 @@ export default function Budgets() {
   }
 
   const groupBudgetsByCategory = (): GroupedCategory[] => {
-    const expenseCats = categories.filter((c) => c.type !== 'income')
-    const categoryBudgetMap = new Map<string, Budget[]>()
+    const today = new Date()
+    const currentMonth = today.getMonth() + 1
+    const currentYear = today.getFullYear()
 
-    budgets.forEach((budget) => {
-      if (!categoryBudgetMap.has(budget.category_id)) {
-        categoryBudgetMap.set(budget.category_id, [])
-      }
-      categoryBudgetMap.get(budget.category_id)!.push(budget)
+    // Get budgets for current month only
+    const currentMonthBudgets = budgets.filter(
+      (b) => b.month === currentMonth && b.year === currentYear
+    )
+
+    const categoryBudgetMap = new Map<string, Budget>()
+    currentMonthBudgets.forEach((budget) => {
+      categoryBudgetMap.set(budget.category_id, budget)
     })
+
+    const expenseCats = categories.filter((c) => c.type !== 'income')
 
     // Group by main category
     const mainCategories = expenseCats.filter((c) => !c.parent_id || c.parent_id === c.id)
@@ -161,39 +158,22 @@ export default function Budgets() {
 
       return {
         mainCategory: mainCat,
-        subCategories: subs.map((subCat) => {
-          const catBudgets = categoryBudgetMap.get(subCat.id) || []
-          const budgetMap = new Map<string, Budget>()
-          catBudgets.forEach((b) => {
-            budgetMap.set(b.frequency, b)
-          })
-          return {
-            category: subCat,
-            budgets: budgetMap,
-          }
-        }),
+        subCategories: subs.map((subCat) => ({
+          category: subCat,
+          budget: categoryBudgetMap.get(subCat.id),
+        })),
       }
     })
   }
 
-  const shouldShowBudget = (budget: Budget): boolean => {
-    if (frequencyFilter === 'all') return true
-    if (frequencyFilter === 'one-off') return budget.is_recurring === false
-    return budget.frequency === frequencyFilter && budget.is_recurring === true
-  }
-
-  const getFrequencyDisplay = (budget?: Budget): { label: string; color: string } => {
-    if (!budget) return { label: 'NA', color: '#94a3b8' }
-    if (!budget.is_recurring) return { label: 'One Off', color: '#64748b' }
-    const label = budget.frequency.charAt(0).toUpperCase() + budget.frequency.slice(1)
-    return { label, color: FREQUENCY_COLORS[budget.frequency] || '#94a3b8' }
-  }
-
   const handleEditStart = (budget: Budget) => {
-    setEditingCategory(budget.category_id)
+    setEditingBudgetId(budget.id)
     setEditFormData({
-      ...budget,
+      id: budget.id,
+      category_id: budget.category_id,
       amount: String(budget.amount),
+      month: budget.month,
+      year: budget.year,
     })
   }
 
@@ -205,18 +185,19 @@ export default function Budgets() {
         .from('budgets')
         .update({
           amount: parseFloat(String(editFormData.amount)),
-          frequency: editFormData.frequency,
-          is_recurring: editFormData.is_recurring,
-          month_period_key: editFormData.month_period_key,
         })
         .eq('id', editFormData.id)
 
       if (!error) {
-        setEditingCategory(null)
+        setEditingBudgetId(null)
         fetchData()
+      } else {
+        console.error('Error saving budget:', error)
+        alert(`Error saving budget: ${error.message}`)
       }
     } catch (error) {
       console.error('Error saving budget:', error)
+      alert(`Error saving budget: ${String(error)}`)
     }
   }
 
@@ -239,16 +220,16 @@ export default function Budgets() {
     }
 
     try {
-      // Use simple period key for testing
-      const periodKey = '202405-01'
+      const today = new Date()
+      const month = today.getMonth() + 1 // 1-12
+      const year = today.getFullYear()
 
       const budgetData = {
         user_id: user.id,
         category_id: categoryId,
         amount: 0,
-        month_period_key: periodKey,
-        is_recurring: true,
-        frequency: 'monthly',
+        month,
+        year,
       }
 
       console.log('Creating budget with data:', budgetData)
@@ -271,31 +252,49 @@ export default function Budgets() {
   }
 
   const handleCopyFromLastMonth = async () => {
-    if (!user || availablePeriods.length < 2) return
+    if (!user) return
 
     try {
-      const lastPeriod = availablePeriods[1]
-      const currentPeriod = availablePeriods[0]
-      const lastPeriodBudgets = budgets.filter((b) => b.month_period_key === lastPeriod)
+      const today = new Date()
+      const currentMonth = today.getMonth() + 1 // 1-12
+      const currentYear = today.getFullYear()
 
-      const newBudgets = lastPeriodBudgets
-        .filter((b) => b.is_recurring)
-        .map((b) => ({
-          user_id: user.id,
-          category_id: b.category_id,
-          amount: b.amount,
-          month_period_key: currentPeriod,
-          is_recurring: b.is_recurring,
-          frequency: b.frequency,
-        }))
+      // Get last month's budgets
+      let lastMonth = currentMonth - 1
+      let lastYear = currentYear
+      if (lastMonth === 0) {
+        lastMonth = 12
+        lastYear = currentYear - 1
+      }
 
-      if (newBudgets.length > 0) {
-        await supabase.from('budgets').insert(newBudgets)
+      const lastMonthBudgets = budgets.filter((b) => b.month === lastMonth && b.year === lastYear)
+
+      if (lastMonthBudgets.length === 0) {
+        alert('No budgets found from last month to copy')
+        return
+      }
+
+      const newBudgets = lastMonthBudgets.map((b) => ({
+        user_id: user.id,
+        category_id: b.category_id,
+        amount: b.amount,
+        month: currentMonth,
+        year: currentYear,
+      }))
+
+      const { error } = await supabase.from('budgets').insert(newBudgets)
+
+      if (error) {
+        console.error('Error copying budgets:', error)
+        alert(`Error copying budgets: ${error.message}`)
+      } else {
+        alert(`Copied ${newBudgets.length} budgets from last month`)
         setShowCopyConfirm(false)
-        fetchData()
+        await fetchData()
       }
     } catch (error) {
       console.error('Error copying budgets:', error)
+      alert(`Error copying budgets: ${String(error)}`)
     }
   }
 
@@ -334,7 +333,7 @@ export default function Budgets() {
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md">
               <h2 className="text-lg font-semibold text-white mb-4">Copy budgets?</h2>
               <p className="text-slate-300 mb-6">
-                This will copy all recurring budgets from last month to the current month.
+                This will copy all budgets from last month to the current month.
               </p>
               <div className="flex space-x-3">
                 <button
@@ -353,23 +352,6 @@ export default function Budgets() {
             </div>
           </div>
         )}
-
-        {/* Frequency Filter Tabs */}
-        <div className="flex space-x-2 mb-6 overflow-x-auto pb-2">
-          {['all', 'monthly', 'yearly', 'weekly', 'daily', 'quarterly', 'one-off'].map((freq) => (
-            <button
-              key={freq}
-              onClick={() => setFrequencyFilter(freq)}
-              className={`px-4 py-2 rounded-full whitespace-nowrap font-medium transition ${
-                frequencyFilter === freq
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`}
-            >
-              {freq === 'one-off' ? 'One Off' : freq.charAt(0).toUpperCase() + freq.slice(1)}
-            </button>
-          ))}
-        </div>
 
         {/* Categories List */}
         {loading ? (
@@ -413,12 +395,8 @@ export default function Budgets() {
                 {expandedGroups.has(group.mainCategory?.id || '') && (
                   <div className="border-t border-slate-700">
                     {group.subCategories.map((item, idx) => {
-                      const currentBudget = Array.from(item.budgets.values()).find((b) =>
-                        shouldShowBudget(b)
-                      )
-                      const hasAnyBudget = item.budgets.size > 0
-                      const freqDisplay = getFrequencyDisplay(currentBudget)
-                      const isEditing = editingCategory === item.category.id
+                      const budget = item.budget
+                      const isEditing = editingBudgetId === budget?.id
 
                       return (
                         <div
@@ -432,26 +410,9 @@ export default function Budgets() {
                             <span className="text-white font-medium">{item.category.name}</span>
                           </div>
 
-                          {isEditing ? (
+                          {isEditing && budget ? (
                             // Edit Mode
                             <div className="flex items-center space-x-2 flex-1 max-w-sm">
-                              <select
-                                value={editFormData.frequency || 'monthly'}
-                                onChange={(e) =>
-                                  setEditFormData({
-                                    ...editFormData,
-                                    frequency: e.target.value as 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly',
-                                  })
-                                }
-                                className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm"
-                              >
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="monthly">Monthly</option>
-                                <option value="quarterly">Quarterly</option>
-                                <option value="yearly">Yearly</option>
-                              </select>
-
                               <input
                                 type="number"
                                 step="0.01"
@@ -471,7 +432,7 @@ export default function Budgets() {
                               </button>
 
                               <button
-                                onClick={() => setEditingCategory(null)}
+                                onClick={() => setEditingBudgetId(null)}
                                 className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition"
                               >
                                 Cancel
@@ -479,47 +440,38 @@ export default function Budgets() {
                             </div>
                           ) : (
                             // Display Mode
-                            <>
-                              <div className="flex items-center space-x-3">
-                                <span
-                                  className="px-2 py-0.5 text-xs font-medium rounded-full text-white"
-                                  style={{ backgroundColor: freqDisplay.color }}
+                            <div className="flex items-center space-x-3">
+                              <span className="text-white font-semibold min-w-[100px]">
+                                {getCurrencySymbol(currency)}
+                                {budget?.amount.toFixed(2) || '0.00'}
+                              </span>
+
+                              {!budget ? (
+                                <button
+                                  onClick={() => handleAddBudget(item.category.id)}
+                                  className="text-slate-400 hover:text-primary-500 transition flex items-center space-x-1"
                                 >
-                                  {freqDisplay.label}
-                                </span>
-
-                                <span className="text-white font-semibold min-w-[100px]">
-                                  {getCurrencySymbol(currency)}
-                                  {currentBudget?.amount.toFixed(2) || '0.000'}
-                                </span>
-
-                                {!hasAnyBudget ? (
+                                  <Plus className="w-4 h-4" />
+                                  <span>Set budget</span>
+                                </button>
+                              ) : (
+                                <>
                                   <button
-                                    onClick={() => handleAddBudget(item.category.id)}
-                                    className="text-slate-400 hover:text-primary-500 transition flex items-center space-x-1"
-                                  >
-                                    <Plus className="w-4 h-4" />
-                                    <span>Set budget</span>
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => handleEditStart(currentBudget!)}
+                                    onClick={() => handleEditStart(budget)}
                                     className="text-slate-400 hover:text-primary-500 transition"
                                   >
                                     ✏️
                                   </button>
-                                )}
 
-                                {currentBudget && (
                                   <button
-                                    onClick={() => handleDeleteBudget(currentBudget.id)}
+                                    onClick={() => handleDeleteBudget(budget.id)}
                                     className="text-slate-400 hover:text-red-500 transition"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
-                                )}
-                              </div>
-                            </>
+                                </>
+                              )}
+                            </div>
                           )}
                         </div>
                       )
