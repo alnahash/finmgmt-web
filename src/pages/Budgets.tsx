@@ -115,10 +115,16 @@ export default function Budgets() {
       }
 
       // Fetch budgets
-      const { data: budgs } = await supabase
+      const { data: budgs, error: budgError } = await supabase
         .from('budgets')
         .select('*')
         .eq('user_id', user.id)
+
+      if (budgError) {
+        console.error('Error fetching budgets:', budgError)
+      } else {
+        console.log('Fetched budgets:', budgs)
+      }
 
       setBudgets(budgs || [])
     } catch (error) {
@@ -228,7 +234,10 @@ export default function Budgets() {
   }
 
   const handleAddBudget = async (categoryId: string) => {
-    if (!user) return
+    if (!user) {
+      console.error('No user found')
+      return
+    }
 
     try {
       // Generate a period key for today if no periods exist yet
@@ -240,7 +249,16 @@ export default function Budgets() {
         periodKey = `${year}${month}-${monthStartDay || 1}`
       }
 
-      await supabase.from('budgets').insert([
+      console.log('Creating budget with:', {
+        user_id: user.id,
+        category_id: categoryId,
+        amount: 0,
+        month_period_key: periodKey,
+        is_recurring: true,
+        frequency: 'monthly',
+      })
+
+      const { data, error } = await supabase.from('budgets').insert([
         {
           user_id: user.id,
           category_id: categoryId,
@@ -250,10 +268,18 @@ export default function Budgets() {
           frequency: 'monthly',
         },
       ])
+
+      if (error) {
+        console.error('Supabase insert error:', error)
+        alert(`Error creating budget: ${error.message}`)
+        return
+      }
+
+      console.log('Budget created successfully:', data)
       fetchData()
     } catch (error) {
       console.error('Error creating budget:', error)
-      alert('Error creating budget')
+      alert(`Error creating budget: ${String(error)}`)
     }
   }
 
