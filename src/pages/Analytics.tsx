@@ -674,7 +674,10 @@ export default function Analytics() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                 {/* Bar Chart - Spending by Category */}
                 <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-                  <h2 className="text-lg font-semibold text-white mb-4">Spending by Category (High to Low)</h2>
+                  <div className="flex items-center space-x-2 mb-6">
+                    <BarChart3 className="w-5 h-5 text-primary-500" />
+                    <h2 className="text-lg font-semibold text-white">Spending by Category (High to Low)</h2>
+                  </div>
                   <ResponsiveContainer width="100%" height={350}>
                     <BarChart
                       data={pieData}
@@ -705,10 +708,10 @@ export default function Analytics() {
 
                 {/* Line Chart */}
                 <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-                  <h2 className="text-lg font-semibold text-white mb-4 flex items-center space-x-2">
-                    <TrendingUp className="w-5 h-5" />
-                    <span>Daily Cumulative Spending</span>
-                  </h2>
+                  <div className="flex items-center space-x-2 mb-6">
+                    <TrendingUp className="w-5 h-5 text-primary-500" />
+                    <h2 className="text-lg font-semibold text-white">Daily Cumulative Spending</h2>
+                  </div>
                   <ResponsiveContainer width="100%" height={350}>
                     <LineChart data={lineData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
