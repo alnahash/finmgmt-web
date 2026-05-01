@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
+import { getCurrencySymbol } from '../lib/utils'
+import { AuthContext } from '../App'
 import { Users, TrendingUp, BarChart3, Activity, Clock, Shield } from 'lucide-react'
 
 interface UserAdminStats {
@@ -44,6 +46,7 @@ function StatusBadge({ lastLogin }: { lastLogin: string | null }) {
 }
 
 export default function AdminPanel() {
+  const { user } = useContext(AuthContext)
   const [users, setUsers] = useState<UserAdminStats[]>([])
   const [appStats, setAppStats] = useState<AppStats>({
     total_users: 0,
@@ -53,6 +56,7 @@ export default function AdminPanel() {
   })
   const [loading, setLoading] = useState(true)
   const [sortBy, setSortBy] = useState<'created_at' | 'last_login_at' | 'login_count'>('created_at')
+  const [currency, setCurrency] = useState('USD')
 
   useEffect(() => {
     fetchAdminData()
@@ -61,6 +65,19 @@ export default function AdminPanel() {
   const fetchAdminData = async () => {
     setLoading(true)
     try {
+      // Fetch admin's currency preference
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('currency')
+          .eq('id', user.id)
+          .single()
+
+        if (profile?.currency) {
+          setCurrency(profile.currency)
+        }
+      }
+
       const { data: authStats, error } = await supabase.rpc('get_admin_user_stats')
       if (error) throw error
 
@@ -170,7 +187,7 @@ export default function AdminPanel() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-slate-400 text-xs uppercase tracking-wide">Total Spending</p>
-                    <p className="text-3xl font-bold text-white mt-1">${appStats.total_spending.toFixed(0)}</p>
+                    <p className="text-3xl font-bold text-white mt-1">{getCurrencySymbol(currency)}{appStats.total_spending.toFixed(0)}</p>
                   </div>
                   <TrendingUp className="w-9 h-9 text-orange-500" />
                 </div>
@@ -252,7 +269,7 @@ export default function AdminPanel() {
                         </td>
                         <td className="px-5 py-4 text-right text-sm text-white">{user.transaction_count}</td>
                         <td className="px-5 py-4 text-right text-sm text-white font-medium">
-                          ${user.total_spending.toFixed(2)}
+                          {getCurrencySymbol(currency)}{user.total_spending.toFixed(2)}
                         </td>
                       </tr>
                     ))}
