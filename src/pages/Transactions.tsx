@@ -230,35 +230,44 @@ export default function Transactions() {
     setShowForm(true)
   }
 
-  const filteredTransactions = transactions.filter((t) => {
-    if (filterDate && t.transaction_date !== filterDate) return false
-    if (filterYear) {
-      const txnYear = new Date(t.transaction_date).getFullYear().toString()
-      if (txnYear !== filterYear) return false
-    }
-    if (filterMonth) {
-      const { startDate, endDate } = getPeriodDateRange(filterMonth)
-      if (t.transaction_date < startDate || t.transaction_date > endDate) return false
-    }
-
-    // Filter by main category and/or sub category
-    if (filterMainCategory || filterSubCategory) {
-      const txnCategory = categories.get(t.category_id)
-      if (!txnCategory) return false
-
-      // If sub-category is selected, match directly
-      if (filterSubCategory) {
-        if (t.category_id !== filterSubCategory) return false
+  const filteredTransactions = transactions
+    .filter((t) => {
+      if (filterDate && t.transaction_date !== filterDate) return false
+      if (filterYear) {
+        const txnYear = new Date(t.transaction_date).getFullYear().toString()
+        if (txnYear !== filterYear) return false
       }
-      // If only main category is selected, check if transaction belongs to that main category
-      else if (filterMainCategory) {
-        const txnMainCategoryId = txnCategory.parent_id ? txnCategory.parent_id : txnCategory.id
-        if (txnMainCategoryId !== filterMainCategory) return false
+      if (filterMonth) {
+        const { startDate, endDate } = getPeriodDateRange(filterMonth)
+        if (t.transaction_date < startDate || t.transaction_date > endDate) return false
       }
-    }
 
-    return true
-  })
+      // Filter by main category and/or sub category
+      if (filterMainCategory || filterSubCategory) {
+        const txnCategory = categories.get(t.category_id)
+        if (!txnCategory) return false
+
+        // If sub-category is selected, match directly
+        if (filterSubCategory) {
+          if (t.category_id !== filterSubCategory) return false
+        }
+        // If only main category is selected, check if transaction belongs to that main category
+        else if (filterMainCategory) {
+          const txnMainCategoryId = txnCategory.parent_id ? txnCategory.parent_id : txnCategory.id
+          if (txnMainCategoryId !== filterMainCategory) return false
+        }
+      }
+
+      return true
+    })
+    .sort((a, b) => {
+      // When any filter is active, always sort by date (newest first)
+      const hasActiveFilter = filterDate || filterYear || filterMonth || filterMainCategory || filterSubCategory
+      if (hasActiveFilter) {
+        return new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
+      }
+      return 0
+    })
 
   const getYearOptions = () => {
     const years = new Set<string>()
