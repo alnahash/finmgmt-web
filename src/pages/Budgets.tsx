@@ -3,7 +3,7 @@ import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { Plus, Trash2, Info } from 'lucide-react'
-import { getPeriodLabel, getUniquePeriodKeys, getCurrencySymbol } from '../lib/utils'
+import { getCurrencySymbol, getUniquePeriodKeysByType, formatPeriodLabel, type PeriodType } from '../lib/utils'
 
 interface Budget {
   id: string
@@ -11,6 +11,7 @@ interface Budget {
   amount: number
   month_period_key: string
   is_recurring: boolean
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
   category_name?: string
   category_icon?: string
   category_type?: string
@@ -35,17 +36,40 @@ export default function Budgets() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [currency, setCurrency] = useState('USD')
+  const [monthStartDay, setMonthStartDay] = useState(1)
+  const [allTransactionDates, setAllTransactionDates] = useState<string[]>([])
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([])
+  const [selectedFrequency, setSelectedFrequency] = useState<PeriodType>('monthly')
   const [formData, setFormData] = useState({
     category_id: '',
     amount: '',
     month_period_key: '',
     is_recurring: true,
+    frequency: 'monthly' as PeriodType,
   })
 
   useEffect(() => {
     fetchData()
   }, [user])
+
+  // Update available periods when frequency changes
+  useEffect(() => {
+    if (allTransactionDates.length > 0) {
+      const periods = getUniquePeriodKeysByType(
+        allTransactionDates,
+        selectedFrequency,
+        monthStartDay
+      )
+      setAvailablePeriods(periods)
+      if (periods.length > 0) {
+        setFormData((prev) => ({
+          ...prev,
+          month_period_key: periods[0],
+          frequency: selectedFrequency,
+        }))
+      }
+    }
+  }, [selectedFrequency, monthStartDay, allTransactionDates])
 
   const fetchData = async () => {
     if (!user) return
@@ -61,6 +85,7 @@ export default function Budgets() {
 
       const startDay = profile?.month_start_day || 1
       const curr = profile?.currency || 'USD'
+      setMonthStartDay(startDay)
       setCurrency(curr)
 
       // Fetch categories
@@ -81,8 +106,11 @@ export default function Budgets() {
 
       let generatedPeriods: string[] = []
       if (transactions && transactions.length > 0) {
-        generatedPeriods = getUniquePeriodKeys(
-          transactions.map((t) => t.transaction_date),
+        const txnDates = transactions.map((t) => t.transaction_date)
+        setAllTransactionDates(txnDates)
+        generatedPeriods = getUniquePeriodKeysByType(
+          txnDates,
+          selectedFrequency,
           startDay
         )
         setAvailablePeriods(generatedPeriods)
@@ -100,6 +128,7 @@ export default function Budgets() {
         category_name: catMap.get(b.category_id)?.name || 'Uncategorized',
         category_icon: catMap.get(b.category_id)?.icon || '📁',
         category_type: catMap.get(b.category_id)?.type,
+        frequency: b.frequency || 'monthly',
       })) || []
 
       setBudgets(enriched)
@@ -109,6 +138,7 @@ export default function Budgets() {
         setFormData((prev) => ({
           ...prev,
           month_period_key: generatedPeriods[0],
+          frequency: selectedFrequency,
         }))
       }
     } catch (error) {
@@ -130,6 +160,7 @@ export default function Budgets() {
           amount: parseFloat(formData.amount),
           month_period_key: formData.month_period_key,
           is_recurring: formData.is_recurring,
+          frequency: formData.frequency,
         },
       ])
 
@@ -138,6 +169,7 @@ export default function Budgets() {
         amount: '',
         month_period_key: availablePeriods.length > 0 ? availablePeriods[0] : '',
         is_recurring: true,
+        frequency: selectedFrequency,
       })
       setShowForm(false)
       fetchData()
@@ -227,7 +259,22 @@ export default function Budgets() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Period</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Frequency</label>
+                  <select
+                    value={selectedFrequency}
+                    onChange={(e) => setSelectedFrequency(e.target.value as PeriodType)}
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">{selectedFrequency.charAt(0).toUpperCase() + selectedFrequency.slice(1)} Period</label>
                   <select
                     value={formData.month_period_key}
                     onChange={(e) =>
@@ -236,10 +283,10 @@ export default function Budgets() {
                     className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
                     required
                   >
-                    <option value="">Select period</option>
+                    <option value="">Select {selectedFrequency}</option>
                     {availablePeriods.map((period) => (
                       <option key={period} value={period}>
-                        {getPeriodLabel(period)}
+                        {formatPeriodLabel(period, selectedFrequency)}
                       </option>
                     ))}
                   </select>
@@ -255,7 +302,7 @@ export default function Budgets() {
                       }
                       className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-primary-600 cursor-pointer"
                     />
-                    <span className="text-sm font-medium text-slate-300">Apply to all periods</span>
+                    <span className="text-sm font-medium text-slate-300">Recurring</span>
                   </label>
                 </div>
               </div>
@@ -276,6 +323,7 @@ export default function Budgets() {
                       amount: '',
                       month_period_key: availablePeriods.length > 0 ? availablePeriods[0] : '',
                       is_recurring: true,
+                      frequency: selectedFrequency,
                     })
                   }}
                   className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-lg transition"
@@ -310,6 +358,9 @@ export default function Budgets() {
                   <div>
                     <div className="flex items-center space-x-2">
                       <p className="text-white font-medium">{b.category_name}</p>
+                      <span className="px-2 py-0.5 text-xs font-medium bg-slate-700 text-slate-300 rounded-full capitalize">
+                        {b.frequency}
+                      </span>
                       {b.is_recurring && (
                         <span className="px-2 py-0.5 text-xs font-medium bg-primary-900 text-primary-300 rounded-full">
                           Recurring
@@ -317,7 +368,7 @@ export default function Budgets() {
                       )}
                     </div>
                     <p className="text-slate-400 text-sm mt-1">
-                      {getPeriodLabel(b.month_period_key)}
+                      {formatPeriodLabel(b.month_period_key, b.frequency as PeriodType)}
                     </p>
                   </div>
                 </div>
