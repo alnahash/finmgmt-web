@@ -59,22 +59,29 @@ export default function AdminPanel() {
   const [currency, setCurrency] = useState('USD')
 
   useEffect(() => {
-    fetchAdminData()
-  }, [])
+    if (user) {
+      fetchAdminData()
+    }
+  }, [user])
 
   const fetchAdminData = async () => {
     setLoading(true)
     try {
       // Fetch admin's currency preference
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('currency')
-          .eq('id', user.id)
-          .single()
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('currency')
+            .eq('id', user.id)
+            .single()
 
-        if (profile?.currency) {
-          setCurrency(profile.currency)
+          if (profile && profile.currency) {
+            setCurrency(profile.currency)
+          }
+        } catch (err) {
+          console.error('Error fetching admin currency:', err)
+          // Keep default USD if fetch fails
         }
       }
 
