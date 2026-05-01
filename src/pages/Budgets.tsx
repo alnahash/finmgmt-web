@@ -61,6 +61,7 @@ export default function Budgets() {
   const [loading, setLoading] = useState(true)
   const [currency, setCurrency] = useState('USD')
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([])
+  const [monthStartDay, setMonthStartDay] = useState(1)
 
   // UI State
   const [frequencyFilter, setFrequencyFilter] = useState('all')
@@ -89,6 +90,7 @@ export default function Budgets() {
       const startDay = profile?.month_start_day || 1
       const curr = profile?.currency || 'USD'
       setCurrency(curr)
+      setMonthStartDay(startDay)
 
       // Fetch categories
       const { data: cats } = await supabase
@@ -226,15 +228,24 @@ export default function Budgets() {
   }
 
   const handleAddBudget = async (categoryId: string) => {
-    if (!user || !availablePeriods.length) return
+    if (!user) return
 
     try {
+      // Generate a period key for today if no periods exist yet
+      let periodKey = availablePeriods[0]
+      if (!periodKey) {
+        const today = new Date()
+        const year = today.getFullYear()
+        const month = String(today.getMonth() + 1).padStart(2, '0')
+        periodKey = `${year}${month}-${monthStartDay || 1}`
+      }
+
       await supabase.from('budgets').insert([
         {
           user_id: user.id,
           category_id: categoryId,
           amount: 0,
-          month_period_key: availablePeriods[0],
+          month_period_key: periodKey,
           is_recurring: true,
           frequency: 'monthly',
         },
@@ -242,6 +253,7 @@ export default function Budgets() {
       fetchData()
     } catch (error) {
       console.error('Error creating budget:', error)
+      alert('Error creating budget')
     }
   }
 
@@ -353,9 +365,13 @@ export default function Budgets() {
               <div key={i} className="h-20 bg-slate-800 rounded-lg animate-pulse"></div>
             ))}
           </div>
+        ) : categories.length === 0 ? (
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+            <p className="text-slate-400">No expense categories found. Create categories first in the Categories tab.</p>
+          </div>
         ) : grouped.length === 0 ? (
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
-            <p className="text-slate-400">No categories found</p>
+            <p className="text-slate-400">No budgets set yet. Click on a category below to set a budget.</p>
           </div>
         ) : (
           <div className="space-y-4">
