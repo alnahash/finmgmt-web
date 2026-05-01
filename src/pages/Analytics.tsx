@@ -4,7 +4,7 @@ import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { getPeriodLabel, getPeriodDateRange, getUniquePeriodKeys, getCurrencySymbol } from '../lib/utils'
 import { BarChart, Bar, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
-import { TrendingUp, Target, DollarSign, BarChart3, Calendar, AlertCircle } from 'lucide-react'
+import { TrendingUp, Target, DollarSign, BarChart3, Calendar, AlertCircle, ChevronDown } from 'lucide-react'
 
 interface Category {
   id: string
@@ -57,6 +57,7 @@ export default function Analytics() {
   const [loading, setLoading] = useState(true)
   const [selectedPeriod, setSelectedPeriod] = useState('')
   const [periods, setPeriods] = useState<string[]>([])
+  const [showAllSubCategories, setShowAllSubCategories] = useState(false)
   const [stats, setStats] = useState<AnalyticsStats>({
     totalTransactions: 0,
     totalSpent: 0,
@@ -824,7 +825,12 @@ export default function Analytics() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <div className="flex items-center space-x-2 mb-6">
                   <BarChart3 className="w-5 h-5 text-primary-500" />
-                  <h2 className="text-lg font-semibold text-white">Sub Category Breakdown</h2>
+                  <h2 className="text-lg font-semibold text-white">
+                    Sub Category Breakdown
+                    <span className="text-sm text-slate-400 ml-2">
+                      ({showAllSubCategories ? categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length : Math.min(10, categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length)} shown)
+                    </span>
+                  </h2>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -841,6 +847,7 @@ export default function Analytics() {
                     <tbody>
                       {categorySpending
                         .filter(cat => categoryMap.get(cat.categoryId)?.parent_id)
+                        .slice(0, showAllSubCategories ? undefined : 10)
                         .map((cat) => {
                           const parentId = categoryMap.get(cat.categoryId)?.parent_id
                           const parentCategory = parentId ? categoryMap.get(parentId) : null
@@ -873,6 +880,28 @@ export default function Analytics() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Show More Button */}
+                {categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length > 10 && (
+                  <div className="mt-4 flex justify-center">
+                    <button
+                      onClick={() => setShowAllSubCategories(!showAllSubCategories)}
+                      className="flex items-center space-x-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium text-white transition"
+                    >
+                      {showAllSubCategories ? (
+                        <>
+                          <span>Show Less</span>
+                          <ChevronDown className="w-4 h-4 rotate-180" />
+                        </>
+                      ) : (
+                        <>
+                          <span>Show More</span>
+                          <ChevronDown className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
