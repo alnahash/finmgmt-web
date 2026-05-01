@@ -76,8 +76,8 @@ export default function AdminPanel() {
             .eq('id', user.id)
             .single()
 
-          if (profile && profile.currency) {
-            setCurrency(profile.currency)
+          if (profile) {
+            setCurrency(profile.currency || 'USD')
           }
         } catch (err) {
           console.error('Error fetching admin currency:', err)
