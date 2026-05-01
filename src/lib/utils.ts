@@ -296,9 +296,6 @@ export const getPeriodDateRangeByType = (
  * Format period label based on period type
  */
 export const formatPeriodLabel = (periodKey: string, periodType: PeriodType): string => {
-  const { startDate, endDate } = getPeriodDateRangeByType(periodKey, periodType)
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
   switch (periodType) {
     case 'yearly':
       return periodKey

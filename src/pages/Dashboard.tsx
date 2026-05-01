@@ -27,7 +27,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [selectedPeriod, setSelectedPeriod] = useState('')
   const [periods, setPeriods] = useState<string[]>([])
-  const [monthStartDay, setMonthStartDay] = useState(1)
   const [currency, setCurrency] = useState('USD')
 
   // Fetch initial data (profile, periods)
@@ -45,7 +44,6 @@ export default function Dashboard() {
           .single()
 
         if (profile) {
-          setMonthStartDay(profile.month_start_day || 1)
           setCurrency(profile.currency || 'USD')
         }
 

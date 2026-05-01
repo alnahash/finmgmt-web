@@ -3,18 +3,14 @@ import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import {
-  getPeriodLabel,
-  getPeriodDateRange,
-  getUniquePeriodKeys,
   getCurrencySymbol,
-  getPeriodKeyByType,
   getUniquePeriodKeysByType,
   getPeriodDateRangeByType,
   formatPeriodLabel,
   type PeriodType
 } from '../lib/utils'
 import { BarChart, Bar, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
-import { TrendingUp, Target, DollarSign, BarChart3, Calendar, AlertCircle, ChevronDown } from 'lucide-react'
+import { TrendingUp, Target, BarChart3, Calendar, AlertCircle, ChevronDown } from 'lucide-react'
 
 interface Category {
   id: string
@@ -23,29 +19,6 @@ interface Category {
   color: string
   parent_id?: string
   type?: 'expense' | 'income'
-}
-
-interface AnalyticsStats {
-  totalTransactions: number
-  totalSpent: number // Only expenses
-  totalIncome: number // Only income
-  savingsThisMonth: number // Income - Expenses
-  avgPerTransaction: number
-  topCategoryExpense: string
-  topCategoryExpenseAmount: number
-  topCategoryIncome: string
-  topCategoryIncomeAmount: number
-  topSubCategoryExpense: string
-  topSubCategoryExpenseAmount: number
-  topSubCategoryIncome: string
-  topSubCategoryIncomeAmount: number
-  topSubCategoryByCount: string
-  topSubCategoryByCountAmount: number
-  topSubCategoryByCountSpent: number
-  topCategoryByCount: string
-  topCategoryByCountAmount: number
-  topCategoryByCountSpent: number
-  daysTracked: number
 }
 
 interface CategorySpending {
@@ -70,28 +43,6 @@ export default function Analytics() {
   const [periods, setPeriods] = useState<string[]>([])
   const [showAllSubCategories, setShowAllSubCategories] = useState(false)
   const [monthStartDay, setMonthStartDay] = useState(1)
-  const [stats, setStats] = useState<AnalyticsStats>({
-    totalTransactions: 0,
-    totalSpent: 0,
-    totalIncome: 0,
-    savingsThisMonth: 0,
-    avgPerTransaction: 0,
-    topCategoryExpense: '',
-    topCategoryExpenseAmount: 0,
-    topCategoryIncome: '',
-    topCategoryIncomeAmount: 0,
-    topSubCategoryExpense: '',
-    topSubCategoryExpenseAmount: 0,
-    topSubCategoryIncome: '',
-    topSubCategoryIncomeAmount: 0,
-    topSubCategoryByCount: '',
-    topSubCategoryByCountAmount: 0,
-    topSubCategoryByCountSpent: 0,
-    topCategoryByCount: '',
-    topCategoryByCountAmount: 0,
-    topCategoryByCountSpent: 0,
-    daysTracked: 0,
-  })
   const [pieData, setPieData] = useState<any[]>([])
   const [lineData, setLineData] = useState<any[]>([])
   const [categorySpending, setCategorySpending] = useState<CategorySpending[]>([])
@@ -213,28 +164,6 @@ export default function Analytics() {
         .lte('transaction_date', endDate)
 
       if (!txns || txns.length === 0) {
-        setStats({
-          totalTransactions: 0,
-          totalSpent: 0,
-          totalIncome: 0,
-          savingsThisMonth: 0,
-          avgPerTransaction: 0,
-          topCategoryExpense: 'N/A',
-          topCategoryExpenseAmount: 0,
-          topCategoryIncome: 'N/A',
-          topCategoryIncomeAmount: 0,
-          topSubCategoryExpense: 'N/A',
-          topSubCategoryExpenseAmount: 0,
-          topSubCategoryIncome: 'N/A',
-          topSubCategoryIncomeAmount: 0,
-          topSubCategoryByCount: 'N/A',
-          topSubCategoryByCountAmount: 0,
-          topSubCategoryByCountSpent: 0,
-          topCategoryByCount: 'N/A',
-          topCategoryByCountAmount: 0,
-          topCategoryByCountSpent: 0,
-          daysTracked: 0,
-        })
         setPieData([])
         setLineData([])
         setCategorySpending([])
@@ -350,104 +279,6 @@ export default function Analytics() {
           amount: current.amount + data.amount,
           parentName,
         })
-      })
-
-      // Get top main categories
-      const topExpenseCat = Array.from(mainCategoryExpenseMap.entries())
-        .map(([, data]) => ({
-          name: data.parentName,
-          value: data.amount,
-        }))
-        .sort((a, b) => b.value - a.value)[0]
-
-      const topIncomeCatData = Array.from(mainCategoryIncomeMap.entries())
-        .map(([, data]) => ({
-          name: data.parentName,
-          value: data.amount,
-        }))
-        .sort((a, b) => b.value - a.value)[0]
-
-      // Calculate top sub-categories (categories with parent_id)
-      const topExpenseSubCat = Array.from(categoryExpenseMap.entries())
-        .filter(([catId]) => categoryMap.get(catId)?.parent_id) // Only sub-categories
-        .map(([catId, data]) => {
-          const cat = categoryMap.get(catId)
-          return {
-            name: cat?.name || 'Uncategorized',
-            value: data.amount,
-          }
-        })
-        .sort((a, b) => b.value - a.value)[0]
-
-      const topIncomeSubCat = Array.from(categoryIncomeMap.entries())
-        .filter(([catId]) => categoryMap.get(catId)?.parent_id) // Only sub-categories
-        .map(([catId, data]) => {
-          const cat = categoryMap.get(catId)
-          return {
-            name: cat?.name || 'Uncategorized',
-            value: data.amount,
-          }
-        })
-        .sort((a, b) => b.value - a.value)[0]
-
-      // Calculate top categories by transaction count
-      const topSubCategoryByCount = Array.from(categoryExpenseMap.entries())
-        .filter(([catId]) => categoryMap.get(catId)?.parent_id) // Only sub-categories
-        .map(([catId, data]) => {
-          const cat = categoryMap.get(catId)
-          return {
-            name: cat?.name || 'Uncategorized',
-            count: data.count,
-            spent: data.amount,
-          }
-        })
-        .sort((a, b) => b.count - a.count)[0]
-
-      // Calculate top category by count (summing sub-category counts)
-      const categoryCountMap = new Map<string, { name: string; count: number; spent: number }>()
-      Array.from(categoryExpenseMap.entries()).forEach(([catId, data]) => {
-        const cat = categoryMap.get(catId)
-        const parentId = cat?.parent_id || catId
-        const parentCat = categoryMap.get(parentId)
-        const parentName = parentCat?.name || cat?.name || 'Uncategorized'
-
-        const current = categoryCountMap.get(parentId) || { name: parentName, count: 0, spent: 0 }
-        categoryCountMap.set(parentId, {
-          name: parentName,
-          count: current.count + data.count,
-          spent: current.spent + data.amount,
-        })
-      })
-
-      const topCategoryByCountData = Array.from(categoryCountMap.entries())
-        .map(([, data]) => data)
-        .sort((a, b) => b.count - a.count)[0]
-
-      const daysTracked = uniqueDays.size
-      const avgPerTransaction = txns.length > 0 ? totalSpent / txns.length : 0
-      const savingsThisMonth = totalIncome - totalSpent
-
-      setStats({
-        totalTransactions: txns.length,
-        totalSpent: parseFloat(totalSpent.toFixed(2)),
-        totalIncome: parseFloat(totalIncome.toFixed(2)),
-        savingsThisMonth: parseFloat(savingsThisMonth.toFixed(2)),
-        avgPerTransaction: parseFloat(avgPerTransaction.toFixed(2)),
-        topCategoryExpense: topExpenseCat?.name || 'N/A',
-        topCategoryExpenseAmount: parseFloat((topExpenseCat?.value || 0).toFixed(2)),
-        topCategoryIncome: topIncomeCatData?.name || 'N/A',
-        topCategoryIncomeAmount: parseFloat((topIncomeCatData?.value || 0).toFixed(2)),
-        topSubCategoryExpense: topExpenseSubCat?.name || 'N/A',
-        topSubCategoryExpenseAmount: parseFloat((topExpenseSubCat?.value || 0).toFixed(2)),
-        topSubCategoryIncome: topIncomeSubCat?.name || 'N/A',
-        topSubCategoryIncomeAmount: parseFloat((topIncomeSubCat?.value || 0).toFixed(2)),
-        topSubCategoryByCount: topSubCategoryByCount?.name || 'N/A',
-        topSubCategoryByCountAmount: topSubCategoryByCount?.count || 0,
-        topSubCategoryByCountSpent: parseFloat((topSubCategoryByCount?.spent || 0).toFixed(2)),
-        topCategoryByCount: topCategoryByCountData?.name || 'N/A',
-        topCategoryByCountAmount: topCategoryByCountData?.count || 0,
-        topCategoryByCountSpent: parseFloat((topCategoryByCountData?.spent || 0).toFixed(2)),
-        daysTracked,
       })
 
       // Build category spending data (expenses only)
