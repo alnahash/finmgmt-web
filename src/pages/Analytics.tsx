@@ -6,11 +6,10 @@ import {
   getCurrencySymbol,
   getUniquePeriodKeysByType,
   getPeriodDateRangeByType,
-  formatPeriodLabel,
-  type PeriodType
+  formatPeriodLabel
 } from '../lib/utils'
 import { BarChart, Bar, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceDot } from 'recharts'
-import { TrendingUp, Target, BarChart3, Calendar, AlertCircle, ChevronDown } from 'lucide-react'
+import { TrendingUp, Target, BarChart3, AlertCircle, ChevronDown } from 'lucide-react'
 
 interface Category {
   id: string
@@ -47,9 +46,7 @@ export default function Analytics() {
 
   // State
   const [loading, setLoading] = useState(true)
-  const [periodType, setPeriodType] = useState<PeriodType>('custom')
   const [selectedPeriod, setSelectedPeriod] = useState('')
-  const [periods, setPeriods] = useState<string[]>([])
   const [showAllSubCategories, setShowAllSubCategories] = useState(false)
   const [monthStartDay, setMonthStartDay] = useState(1)
   const [pieData, setPieData] = useState<any[]>([])
@@ -69,30 +66,6 @@ export default function Analytics() {
   useEffect(() => {
     fetchInitialData()
   }, [user])
-
-  // Regenerate periods when period type changes
-  useEffect(() => {
-    if (user) {
-      // Get all transaction dates for accurate period generation
-      supabase
-        .from('transactions')
-        .select('transaction_date')
-        .eq('user_id', user.id)
-        .then(({ data: allTxns }) => {
-          if (allTxns && allTxns.length > 0) {
-            const generatedPeriods = getUniquePeriodKeysByType(
-              allTxns.map((t) => t.transaction_date),
-              periodType,
-              monthStartDay
-            )
-            setPeriods(generatedPeriods)
-            if (generatedPeriods.length > 0) {
-              setSelectedPeriod(generatedPeriods[0])
-            }
-          }
-        })
-    }
-  }, [periodType, user, monthStartDay])
 
   // Fetch analytics when period changes
   useEffect(() => {
@@ -156,10 +129,9 @@ export default function Analytics() {
         setAllTransactionDates(txnDates)
         const availablePeriods = getUniquePeriodKeysByType(
           txnDates,
-          periodType,
+          'monthly',
           monthStartDayToUse
         )
-        setPeriods(availablePeriods)
 
         // Select the first (most recent) period
         if (availablePeriods.length > 0) {
@@ -177,7 +149,7 @@ export default function Analytics() {
     if (!user || !selectedPeriod) return
 
     try {
-      const { startDate, endDate } = getPeriodDateRangeByType(selectedPeriod, periodType)
+      const { startDate, endDate } = getPeriodDateRangeByType(selectedPeriod, 'monthly')
 
       // Fetch transactions for the period
       const { data: txns } = await supabase
@@ -449,43 +421,10 @@ export default function Analytics() {
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header with Period Selectors */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
-          <h1 className="text-3xl font-bold text-white mb-4 md:mb-0">Analytics</h1>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            {/* Period Type Selector */}
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-slate-400">View:</span>
-              <select
-                value={periodType}
-                onChange={(e) => setPeriodType(e.target.value as PeriodType)}
-                className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:border-primary-500"
-              >
-                <option value="yearly">Yearly</option>
-                <option value="quarterly">Quarterly</option>
-                <option value="monthly">Monthly</option>
-                <option value="weekly">Weekly</option>
-                <option value="daily">Daily</option>
-                <option value="custom">Custom Period</option>
-              </select>
-            </div>
-
-            {/* Period Selector */}
-            <div className="flex items-center space-x-2">
-              <Calendar className="w-5 h-5 text-slate-400" />
-              <select
-                value={selectedPeriod}
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-primary-500"
-              >
-                {periods.map((period) => (
-                  <option key={period} value={period}>
-                    {formatPeriodLabel(period, periodType)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white">Analytics</h1>
+          <p className="text-slate-400 text-sm mt-2">Analyze your spending patterns and trends</p>
         </div>
 
         {/* Main Content */}
