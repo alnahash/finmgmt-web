@@ -2,8 +2,8 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { Plus, Trash2, Info } from 'lucide-react'
-import { getCurrencySymbol, getUniquePeriodKeysByType, formatPeriodLabel, type PeriodType } from '../lib/utils'
+import { Plus, Trash2, Copy, ChevronDown, ChevronUp } from 'lucide-react'
+import { getCurrencySymbol, getUniquePeriodKeysByType } from '../lib/utils'
 
 interface Budget {
   id: string
@@ -12,9 +12,6 @@ interface Budget {
   month_period_key: string
   is_recurring: boolean
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
-  category_name?: string
-  category_icon?: string
-  category_type?: string
 }
 
 interface Category {
@@ -22,6 +19,7 @@ interface Category {
   name: string
   icon: string
   type?: string
+  parent_id?: string | null
 }
 
 interface Profile {
@@ -29,54 +27,49 @@ interface Profile {
   currency: string
 }
 
+interface CategoryWithBudget {
+  category: Category
+  budgets: Map<string, Budget> // Map by frequency
+}
+
+interface GroupedCategory {
+  mainCategory: Category | null
+  subCategories: CategoryWithBudget[]
+}
+
+const FREQUENCY_COLORS: Record<string, string> = {
+  daily: '#f97316', // orange
+  weekly: '#10b981', // green
+  monthly: '#3b82f6', // blue
+  quarterly: '#06b6d4', // cyan
+  yearly: '#a855f7', // purple
+}
+
 export default function Budgets() {
   const { user } = useContext(AuthContext)
   const [budgets, setBudgets] = useState<Budget[]>([])
-  const [categories, setCategories] = useState<Map<string, Category>>(new Map())
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
   const [currency, setCurrency] = useState('USD')
-  const [monthStartDay, setMonthStartDay] = useState(1)
-  const [allTransactionDates, setAllTransactionDates] = useState<string[]>([])
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([])
-  const [selectedFrequency, setSelectedFrequency] = useState<PeriodType>('monthly')
-  const [formData, setFormData] = useState({
-    category_id: '',
-    amount: '',
-    month_period_key: '',
-    is_recurring: true,
-    frequency: 'monthly' as PeriodType,
-  })
+
+  // UI State
+  const [frequencyFilter, setFrequencyFilter] = useState('all')
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [editingCategory, setEditingCategory] = useState<string | null>(null)
+  const [editFormData, setEditFormData] = useState<Partial<Budget>>({})
+  const [showCopyConfirm, setShowCopyConfirm] = useState(false)
 
   useEffect(() => {
     fetchData()
   }, [user])
-
-  // Update available periods when frequency changes
-  useEffect(() => {
-    if (allTransactionDates.length > 0) {
-      const periods = getUniquePeriodKeysByType(
-        allTransactionDates,
-        selectedFrequency,
-        monthStartDay
-      )
-      setAvailablePeriods(periods)
-      if (periods.length > 0) {
-        setFormData((prev) => ({
-          ...prev,
-          month_period_key: periods[0],
-          frequency: selectedFrequency,
-        }))
-      }
-    }
-  }, [selectedFrequency, monthStartDay, allTransactionDates])
 
   const fetchData = async () => {
     if (!user) return
     setLoading(true)
 
     try {
-      // Fetch profile for month_start_day and currency
+      // Fetch profile
       const { data: profile } = await supabase
         .from('profiles')
         .select('month_start_day, currency')
@@ -85,18 +78,17 @@ export default function Budgets() {
 
       const startDay = profile?.month_start_day || 1
       const curr = profile?.currency || 'USD'
-      setMonthStartDay(startDay)
       setCurrency(curr)
 
       // Fetch categories
       const { data: cats } = await supabase
         .from('categories')
-        .select('id, name, icon, type')
+        .select('id, name, icon, type, parent_id')
         .eq('user_id', user.id)
+        .order('parent_id', { ascending: true, nullsFirst: true })
+        .order('name', { ascending: true })
 
-      const catMap = new Map()
-      cats?.forEach((cat) => catMap.set(cat.id, cat))
-      setCategories(catMap)
+      setCategories(cats || [])
 
       // Fetch all transactions to generate available periods
       const { data: transactions } = await supabase
@@ -104,15 +96,9 @@ export default function Budgets() {
         .select('transaction_date')
         .eq('user_id', user.id)
 
-      let generatedPeriods: string[] = []
       if (transactions && transactions.length > 0) {
         const txnDates = transactions.map((t) => t.transaction_date)
-        setAllTransactionDates(txnDates)
-        generatedPeriods = getUniquePeriodKeysByType(
-          txnDates,
-          selectedFrequency,
-          startDay
-        )
+        const generatedPeriods = getUniquePeriodKeysByType(txnDates, 'monthly', startDay)
         setAvailablePeriods(generatedPeriods)
       }
 
@@ -121,26 +107,8 @@ export default function Budgets() {
         .from('budgets')
         .select('*')
         .eq('user_id', user.id)
-        .order('month_period_key', { ascending: false })
 
-      const enriched = budgs?.map((b) => ({
-        ...b,
-        category_name: catMap.get(b.category_id)?.name || 'Uncategorized',
-        category_icon: catMap.get(b.category_id)?.icon || '📁',
-        category_type: catMap.get(b.category_id)?.type,
-        frequency: b.frequency || 'monthly',
-      })) || []
-
-      setBudgets(enriched)
-
-      // Set initial period in form to current period
-      if (generatedPeriods && generatedPeriods.length > 0) {
-        setFormData((prev) => ({
-          ...prev,
-          month_period_key: generatedPeriods[0],
-          frequency: selectedFrequency,
-        }))
-      }
+      setBudgets(budgs || [])
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -148,242 +116,376 @@ export default function Budgets() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!user || !formData.category_id || !formData.amount || !formData.month_period_key) return
+  const groupBudgetsByCategory = (): GroupedCategory[] => {
+    const expenseCats = categories.filter((c) => c.type !== 'income')
+    const categoryBudgetMap = new Map<string, Budget[]>()
+
+    budgets.forEach((budget) => {
+      if (!categoryBudgetMap.has(budget.category_id)) {
+        categoryBudgetMap.set(budget.category_id, [])
+      }
+      categoryBudgetMap.get(budget.category_id)!.push(budget)
+    })
+
+    // Group by main category
+    const mainCategories = expenseCats.filter((c) => !c.parent_id || c.parent_id === c.id)
+    const subCategoryMap = new Map<string, Category[]>()
+
+    expenseCats.forEach((c) => {
+      if (c.parent_id && c.parent_id !== c.id) {
+        if (!subCategoryMap.has(c.parent_id)) {
+          subCategoryMap.set(c.parent_id, [])
+        }
+        subCategoryMap.get(c.parent_id)!.push(c)
+      }
+    })
+
+    return mainCategories.map((mainCat) => {
+      const subs = subCategoryMap.get(mainCat.id) || [mainCat]
+
+      return {
+        mainCategory: mainCat,
+        subCategories: subs.map((subCat) => {
+          const catBudgets = categoryBudgetMap.get(subCat.id) || []
+          const budgetMap = new Map<string, Budget>()
+          catBudgets.forEach((b) => {
+            budgetMap.set(b.frequency, b)
+          })
+          return {
+            category: subCat,
+            budgets: budgetMap,
+          }
+        }),
+      }
+    })
+  }
+
+  const shouldShowBudget = (budget: Budget): boolean => {
+    if (frequencyFilter === 'all') return true
+    if (frequencyFilter === 'one-off') return budget.is_recurring === false
+    return budget.frequency === frequencyFilter && budget.is_recurring === true
+  }
+
+  const getFrequencyDisplay = (budget?: Budget): { label: string; color: string } => {
+    if (!budget) return { label: 'NA', color: '#94a3b8' }
+    if (!budget.is_recurring) return { label: 'One Off', color: '#64748b' }
+    const label = budget.frequency.charAt(0).toUpperCase() + budget.frequency.slice(1)
+    return { label, color: FREQUENCY_COLORS[budget.frequency] || '#94a3b8' }
+  }
+
+  const handleEditStart = (budget: Budget) => {
+    setEditingCategory(budget.category_id)
+    setEditFormData({
+      ...budget,
+    })
+  }
+
+  const handleSaveBudget = async () => {
+    if (!user || !editFormData.id) return
 
     try {
-      await supabase.from('budgets').insert([
-        {
-          user_id: user.id,
-          category_id: formData.category_id,
-          amount: parseFloat(formData.amount),
-          month_period_key: formData.month_period_key,
-          is_recurring: formData.is_recurring,
-          frequency: formData.frequency,
-        },
-      ])
+      const { error } = await supabase
+        .from('budgets')
+        .update({
+          amount: parseFloat(editFormData.amount as any),
+          frequency: editFormData.frequency,
+          is_recurring: editFormData.is_recurring,
+          month_period_key: editFormData.month_period_key,
+        })
+        .eq('id', editFormData.id)
 
-      setFormData({
-        category_id: '',
-        amount: '',
-        month_period_key: availablePeriods.length > 0 ? availablePeriods[0] : '',
-        is_recurring: true,
-        frequency: selectedFrequency,
-      })
-      setShowForm(false)
-      fetchData()
+      if (!error) {
+        setEditingCategory(null)
+        fetchData()
+      }
     } catch (error) {
       console.error('Error saving budget:', error)
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteBudget = async (budgetId: string) => {
     if (!user || !confirm('Delete this budget?')) return
 
     try {
-      await supabase
-        .from('budgets')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id)
-
+      await supabase.from('budgets').delete().eq('id', budgetId).eq('user_id', user.id)
       fetchData()
     } catch (error) {
       console.error('Error deleting budget:', error)
     }
   }
 
+  const handleAddBudget = async (categoryId: string) => {
+    if (!user || !availablePeriods.length) return
+
+    try {
+      await supabase.from('budgets').insert([
+        {
+          user_id: user.id,
+          category_id: categoryId,
+          amount: 0,
+          month_period_key: availablePeriods[0],
+          is_recurring: true,
+          frequency: 'monthly',
+        },
+      ])
+      fetchData()
+    } catch (error) {
+      console.error('Error creating budget:', error)
+    }
+  }
+
+  const handleCopyFromLastMonth = async () => {
+    if (!user || availablePeriods.length < 2) return
+
+    try {
+      const lastPeriod = availablePeriods[1]
+      const currentPeriod = availablePeriods[0]
+      const lastPeriodBudgets = budgets.filter((b) => b.month_period_key === lastPeriod)
+
+      const newBudgets = lastPeriodBudgets
+        .filter((b) => b.is_recurring)
+        .map((b) => ({
+          user_id: user.id,
+          category_id: b.category_id,
+          amount: b.amount,
+          month_period_key: currentPeriod,
+          is_recurring: b.is_recurring,
+          frequency: b.frequency,
+        }))
+
+      if (newBudgets.length > 0) {
+        await supabase.from('budgets').insert(newBudgets)
+        setShowCopyConfirm(false)
+        fetchData()
+      }
+    } catch (error) {
+      console.error('Error copying budgets:', error)
+    }
+  }
+
+  const toggleGroup = (groupId: string) => {
+    const newExpanded = new Set(expandedGroups)
+    if (newExpanded.has(groupId)) {
+      newExpanded.delete(groupId)
+    } else {
+      newExpanded.add(groupId)
+    }
+    setExpandedGroups(newExpanded)
+  }
+
+  const grouped = groupBudgetsByCategory()
+
   return (
     <Layout>
       <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-white">Budgets</h1>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Set Budget</span>
-          </button>
+          {availablePeriods.length > 1 && (
+            <button
+              onClick={() => setShowCopyConfirm(true)}
+              className="flex items-center space-x-2 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition"
+            >
+              <Copy className="w-5 h-5" />
+              <span>Copy from last month</span>
+            </button>
+          )}
         </div>
 
-        {/* Form */}
-        {showForm && (
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
-            <h2 className="text-lg font-semibold text-white mb-4">Create New Budget</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Info box */}
-              <div className="bg-slate-700 border border-slate-600 rounded-lg p-4 flex items-start space-x-3">
-                <Info className="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-slate-300">
-                  <p className="font-medium text-white mb-1">How budgets work:</p>
-                  <p><span className="text-primary-300">Frequency:</span> Choose the budget type (Daily, Weekly, Monthly, etc.)</p>
-                  <p className="mt-2"><span className="text-primary-300">Recurring:</span> Enable to apply the same budget to ALL periods of that frequency. Disable to set a budget for just one specific period.</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Category</label>
-                  <select
-                    value={formData.category_id}
-                    onChange={(e) =>
-                      setFormData({ ...formData, category_id: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                    required
-                  >
-                    <option value="">Select category</option>
-                    {Array.from(categories.values()).map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.icon} {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Budget Amount</label>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-slate-400">{getCurrencySymbol(currency)}</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.amount}
-                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                      placeholder="0.00"
-                      className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Frequency</label>
-                  <select
-                    value={selectedFrequency}
-                    onChange={(e) => setSelectedFrequency(e.target.value as PeriodType)}
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                  >
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="quarterly">Quarterly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
-                </div>
-
-                <div className="flex items-end">
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.is_recurring}
-                      onChange={(e) =>
-                        setFormData({ ...formData, is_recurring: e.target.checked })
-                      }
-                      className="w-4 h-4 rounded bg-slate-700 border-slate-600 text-primary-600 cursor-pointer"
-                    />
-                    <span className="text-sm font-medium text-slate-300">Recurring</span>
-                  </label>
-                </div>
-
-                {!formData.is_recurring && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Specific {selectedFrequency.charAt(0).toUpperCase() + selectedFrequency.slice(1)}</label>
-                    <select
-                      value={formData.month_period_key}
-                      onChange={(e) =>
-                        setFormData({ ...formData, month_period_key: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-primary-500"
-                      required
-                    >
-                      <option value="">Select {selectedFrequency}</option>
-                      {availablePeriods.map((period) => (
-                        <option key={period} value={period}>
-                          {formatPeriodLabel(period, selectedFrequency)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex space-x-2 pt-2">
+        {/* Copy Confirmation Modal */}
+        {showCopyConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md">
+              <h2 className="text-lg font-semibold text-white mb-4">Copy budgets?</h2>
+              <p className="text-slate-300 mb-6">
+                This will copy all recurring budgets from last month to the current month.
+              </p>
+              <div className="flex space-x-3">
                 <button
-                  type="submit"
+                  onClick={handleCopyFromLastMonth}
                   className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 rounded-lg transition"
                 >
-                  Create Budget
+                  Copy
                 </button>
                 <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false)
-                    setFormData({
-                      category_id: '',
-                      amount: '',
-                      month_period_key: availablePeriods.length > 0 ? availablePeriods[0] : '',
-                      is_recurring: true,
-                      frequency: selectedFrequency,
-                    })
-                  }}
+                  onClick={() => setShowCopyConfirm(false)}
                   className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-lg transition"
                 >
                   Cancel
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         )}
 
-        {/* Budgets List */}
+        {/* Frequency Filter Tabs */}
+        <div className="flex space-x-2 mb-6 overflow-x-auto pb-2">
+          {['all', 'monthly', 'yearly', 'weekly', 'daily', 'quarterly', 'one-off'].map((freq) => (
+            <button
+              key={freq}
+              onClick={() => setFrequencyFilter(freq)}
+              className={`px-4 py-2 rounded-full whitespace-nowrap font-medium transition ${
+                frequencyFilter === freq
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              {freq === 'one-off' ? 'One Off' : freq.charAt(0).toUpperCase() + freq.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Categories List */}
         {loading ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
               <div key={i} className="h-20 bg-slate-800 rounded-lg animate-pulse"></div>
             ))}
           </div>
-        ) : budgets.length === 0 ? (
+        ) : grouped.length === 0 ? (
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
-            <p className="text-slate-400">No budgets set yet</p>
+            <p className="text-slate-400">No categories found</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {budgets.map((b) => (
-              <div
-                key={b.id}
-                className="bg-slate-800 border border-slate-700 rounded-lg p-4 flex items-center justify-between hover:border-primary-500 transition"
-              >
-                <div className="flex items-center space-x-4 flex-1">
-                  <span className="text-2xl">{b.category_icon}</span>
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <p className="text-white font-medium">{b.category_name}</p>
-                      <span className="px-2 py-0.5 text-xs font-medium bg-slate-700 text-slate-300 rounded-full capitalize">
-                        {b.frequency}
-                      </span>
-                      {b.is_recurring && (
-                        <span className="px-2 py-0.5 text-xs font-medium bg-primary-900 text-primary-300 rounded-full">
-                          Recurring
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-slate-400 text-sm mt-1">
-                      {formatPeriodLabel(b.month_period_key, b.frequency as PeriodType)}
-                    </p>
+          <div className="space-y-4">
+            {grouped.map((group) => (
+              <div key={group.mainCategory?.id} className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+                {/* Group Header */}
+                <button
+                  onClick={() => toggleGroup(group.mainCategory?.id || '')}
+                  className="w-full flex items-center justify-between p-4 hover:bg-slate-700/50 transition"
+                >
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl">{group.mainCategory?.icon}</span>
+                    <span className="text-white font-semibold uppercase text-sm">
+                      {group.mainCategory?.name}
+                    </span>
+                    <span className="text-slate-400 text-sm">({group.subCategories.length})</span>
                   </div>
-                </div>
-                <div className="flex items-center space-x-4">
-                  <p className="text-white font-semibold text-lg">{getCurrencySymbol(currency)}{b.amount.toFixed(2)}</p>
-                  <button
-                    onClick={() => handleDelete(b.id)}
-                    className="text-slate-400 hover:text-red-500 transition"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </div>
+                  {expandedGroups.has(group.mainCategory?.id || '') ? (
+                    <ChevronUp className="w-5 h-5 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-slate-400" />
+                  )}
+                </button>
+
+                {/* Group Items */}
+                {expandedGroups.has(group.mainCategory?.id || '') && (
+                  <div className="border-t border-slate-700">
+                    {group.subCategories.map((item, idx) => {
+                      const currentBudget = Array.from(item.budgets.values()).find((b) =>
+                        shouldShowBudget(b)
+                      )
+                      const hasAnyBudget = item.budgets.size > 0
+                      const freqDisplay = getFrequencyDisplay(currentBudget)
+                      const isEditing = editingCategory === item.category.id
+
+                      return (
+                        <div
+                          key={item.category.id}
+                          className={`flex items-center justify-between p-4 ${
+                            idx !== group.subCategories.length - 1 ? 'border-b border-slate-700' : ''
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3 flex-1">
+                            <span className="text-2xl">{item.category.icon}</span>
+                            <span className="text-white font-medium">{item.category.name}</span>
+                          </div>
+
+                          {isEditing ? (
+                            // Edit Mode
+                            <div className="flex items-center space-x-2 flex-1 max-w-sm">
+                              <select
+                                value={editFormData.frequency || 'monthly'}
+                                onChange={(e) =>
+                                  setEditFormData({
+                                    ...editFormData,
+                                    frequency: e.target.value as any,
+                                  })
+                                }
+                                className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                              >
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="quarterly">Quarterly</option>
+                                <option value="yearly">Yearly</option>
+                              </select>
+
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={editFormData.amount || ''}
+                                onChange={(e) =>
+                                  setEditFormData({ ...editFormData, amount: e.target.value as any })
+                                }
+                                placeholder="0.00"
+                                className="w-20 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm"
+                              />
+
+                              <button
+                                onClick={handleSaveBudget}
+                                className="px-3 py-1 bg-primary-600 hover:bg-primary-700 text-white text-sm rounded transition"
+                              >
+                                Save
+                              </button>
+
+                              <button
+                                onClick={() => setEditingCategory(null)}
+                                className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded transition"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            // Display Mode
+                            <>
+                              <div className="flex items-center space-x-3">
+                                <span
+                                  className="px-2 py-0.5 text-xs font-medium rounded-full text-white"
+                                  style={{ backgroundColor: freqDisplay.color }}
+                                >
+                                  {freqDisplay.label}
+                                </span>
+
+                                <span className="text-white font-semibold min-w-[100px]">
+                                  {getCurrencySymbol(currency)}
+                                  {currentBudget?.amount.toFixed(2) || '0.000'}
+                                </span>
+
+                                {!hasAnyBudget ? (
+                                  <button
+                                    onClick={() => handleAddBudget(item.category.id)}
+                                    className="text-slate-400 hover:text-primary-500 transition flex items-center space-x-1"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                    <span>Set budget</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleEditStart(currentBudget!)}
+                                    className="text-slate-400 hover:text-primary-500 transition"
+                                  >
+                                    ✏️
+                                  </button>
+                                )}
+
+                                {currentBudget && (
+                                  <button
+                                    onClick={() => handleDeleteBudget(currentBudget.id)}
+                                    className="text-slate-400 hover:text-red-500 transition"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             ))}
           </div>
