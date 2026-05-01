@@ -61,7 +61,6 @@ export default function Budgets() {
   const [loading, setLoading] = useState(true)
   const [currency, setCurrency] = useState('USD')
   const [availablePeriods, setAvailablePeriods] = useState<string[]>([])
-  const [monthStartDay, setMonthStartDay] = useState(1)
 
   // UI State
   const [frequencyFilter, setFrequencyFilter] = useState('all')
@@ -90,7 +89,6 @@ export default function Budgets() {
       const startDay = profile?.month_start_day || 1
       const curr = profile?.currency || 'USD'
       setCurrency(curr)
-      setMonthStartDay(startDay)
 
       // Fetch categories
       const { data: cats } = await supabase
@@ -236,50 +234,39 @@ export default function Budgets() {
   const handleAddBudget = async (categoryId: string) => {
     if (!user) {
       console.error('No user found')
+      alert('No user found. Please log in.')
       return
     }
 
     try {
-      // Generate a period key for today if no periods exist yet
-      let periodKey = availablePeriods[0]
-      if (!periodKey) {
-        const today = new Date()
-        const year = today.getFullYear()
-        const month = String(today.getMonth() + 1).padStart(2, '0')
-        periodKey = `${year}${month}-${monthStartDay || 1}`
-      }
+      // Use simple period key for testing
+      const periodKey = '202405-01'
 
-      console.log('Creating budget with:', {
+      const budgetData = {
         user_id: user.id,
         category_id: categoryId,
         amount: 0,
         month_period_key: periodKey,
         is_recurring: true,
         frequency: 'monthly',
-      })
+      }
 
-      const { data, error } = await supabase.from('budgets').insert([
-        {
-          user_id: user.id,
-          category_id: categoryId,
-          amount: 0,
-          month_period_key: periodKey,
-          is_recurring: true,
-          frequency: 'monthly',
-        },
-      ])
+      console.log('Creating budget with data:', budgetData)
+
+      const { data, error } = await supabase.from('budgets').insert([budgetData]).select()
 
       if (error) {
-        console.error('Supabase insert error:', error)
-        alert(`Error creating budget: ${error.message}`)
+        console.error('Supabase error:', error.code, error.message, error.details)
+        alert(`Budget creation failed:\n\nCode: ${error.code}\nMessage: ${error.message}\nDetails: ${error.details || 'None'}`)
         return
       }
 
       console.log('Budget created successfully:', data)
-      fetchData()
+      alert('Budget created! Refreshing...')
+      await fetchData()
     } catch (error) {
-      console.error('Error creating budget:', error)
-      alert(`Error creating budget: ${String(error)}`)
+      console.error('Unexpected error:', error)
+      alert(`Unexpected error: ${String(error)}`)
     }
   }
 
