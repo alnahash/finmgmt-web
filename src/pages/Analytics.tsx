@@ -774,142 +774,148 @@ export default function Analytics() {
               </div>
             )}
 
-            {/* Category Breakdown - Main Categories */}
-            {categorySpending.filter(cat => !categoryMap.get(cat.categoryId)?.parent_id).length > 0 && (
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-8">
-                <div className="flex items-center space-x-2 mb-6">
-                  <BarChart3 className="w-5 h-5 text-primary-500" />
-                  <h2 className="text-lg font-semibold text-white">Main Category Breakdown</h2>
-                </div>
+            {/* Category Breakdown - Main and Sub Categories */}
+            {(categorySpending.filter(cat => !categoryMap.get(cat.categoryId)?.parent_id).length > 0 ||
+              categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length > 0) && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                {/* Main Categories */}
+                {categorySpending.filter(cat => !categoryMap.get(cat.categoryId)?.parent_id).length > 0 && (
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                    <div className="flex items-center space-x-2 mb-6">
+                      <BarChart3 className="w-5 h-5 text-primary-500" />
+                      <h2 className="text-lg font-semibold text-white">Main Category Breakdown</h2>
+                    </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-700">
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-300">Category</th>
-                        <th className="text-right py-3 px-4 text-sm font-semibold text-slate-300">Spent</th>
-                        <th className="text-right py-3 px-4 text-sm font-semibold text-slate-300">% of Total</th>
-                        <th className="text-right py-3 px-4 text-sm font-semibold text-slate-300">Transactions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {categorySpending
-                        .filter(cat => !categoryMap.get(cat.categoryId)?.parent_id)
-                        .map((cat) => (
-                          <tr key={cat.categoryId} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition">
-                            <td className="py-3 px-4">
-                              <div className="flex items-center space-x-2">
-                                <span className="text-xl">{cat.categoryIcon}</span>
-                                <span className="text-sm font-medium text-white">{cat.categoryName}</span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 text-right text-sm text-white">
-                              {getCurrencySymbol(currency)}{cat.spent.toFixed(2)}
-                            </td>
-                            <td className="py-3 px-4 text-right text-sm text-white">
-                              {cat.percentage.toFixed(1)}%
-                            </td>
-                            <td className="py-3 px-4 text-right text-sm text-slate-400">
-                              {cat.transactionCount}
-                            </td>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-slate-700">
+                            <th className="text-left py-3 px-4 text-sm font-semibold text-slate-300">Category</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-slate-300">Spent</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-slate-300">% of Total</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-slate-300">Transactions</th>
                           </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Category Breakdown - Sub Categories */}
-            {categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length > 0 && (
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
-                <div className="flex items-center space-x-2 mb-6">
-                  <BarChart3 className="w-5 h-5 text-primary-500" />
-                  <h2 className="text-lg font-semibold text-white">
-                    Sub Category Breakdown
-                    <span className="text-sm text-slate-400 ml-2">
-                      ({showAllSubCategories ? categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length : Math.min(5, categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length)} shown)
-                    </span>
-                  </h2>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-slate-700">
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-300">Sub Category</th>
-                        <th className="text-left py-3 px-4 text-sm font-semibold text-slate-300">Main Category</th>
-                        <th className="text-right py-3 px-4 text-sm font-semibold text-slate-300">Spent</th>
-                        <th className="text-right py-3 px-4 text-sm font-semibold text-slate-300">% of Total</th>
-                        <th className="text-right py-3 px-4 text-sm font-semibold text-slate-300">Transactions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {categorySpending
-                        .filter(cat => categoryMap.get(cat.categoryId)?.parent_id)
-                        .slice(0, showAllSubCategories ? undefined : 5)
-                        .map((cat) => {
-                          const parentId = categoryMap.get(cat.categoryId)?.parent_id
-                          const parentCategory = parentId ? categoryMap.get(parentId) : null
-                          return (
-                            <tr key={cat.categoryId} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition">
-                              <td className="py-3 px-4">
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-xl">{cat.categoryIcon}</span>
-                                  <span className="text-sm text-white">{cat.categoryName}</span>
-                                </div>
-                              </td>
-                              <td className="py-3 px-4">
-                                <div className="flex items-center space-x-1 text-sm text-slate-300">
-                                  <span>{parentCategory?.icon || '📁'}</span>
-                                  <span>{parentCategory?.name || 'Unknown'}</span>
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 text-right text-sm text-white">
-                                {getCurrencySymbol(currency)}{cat.spent.toFixed(2)}
-                              </td>
-                              <td className="py-3 px-4 text-right text-sm text-white">
-                                {cat.percentage.toFixed(1)}%
-                              </td>
-                              <td className="py-3 px-4 text-right text-sm text-slate-400">
-                                {cat.transactionCount}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Show More Button */}
-                {categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length > 5 && (
-                  <div className="mt-4 flex justify-center">
-                    <button
-                      onClick={() => setShowAllSubCategories(!showAllSubCategories)}
-                      className="flex items-center space-x-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium text-white transition"
-                    >
-                      {showAllSubCategories ? (
-                        <>
-                          <span>Show Less</span>
-                          <ChevronDown className="w-4 h-4 rotate-180" />
-                        </>
-                      ) : (
-                        <>
-                          <span>Show More</span>
-                          <ChevronDown className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
+                        </thead>
+                        <tbody>
+                          {categorySpending
+                            .filter(cat => !categoryMap.get(cat.categoryId)?.parent_id)
+                            .map((cat) => (
+                              <tr key={cat.categoryId} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition">
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-xl">{cat.categoryIcon}</span>
+                                    <span className="text-sm font-medium text-white">{cat.categoryName}</span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-right text-sm text-white">
+                                  {getCurrencySymbol(currency)}{cat.spent.toFixed(2)}
+                                </td>
+                                <td className="py-3 px-4 text-right text-sm text-white">
+                                  {cat.percentage.toFixed(1)}%
+                                </td>
+                                <td className="py-3 px-4 text-right text-sm text-slate-400">
+                                  {cat.transactionCount}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
-              </div>
-            )}
 
-            {/* Empty State */}
-            {categorySpending.length === 0 && (
-              <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
-                <AlertCircle className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-                <p className="text-slate-400">No transaction data for this period</p>
+                {/* Sub Categories */}
+                {categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length > 0 && (
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                    <div className="flex items-center space-x-2 mb-6">
+                      <BarChart3 className="w-5 h-5 text-primary-500" />
+                      <h2 className="text-lg font-semibold text-white">
+                        Sub Category Breakdown
+                        <span className="text-sm text-slate-400 ml-2">
+                          ({showAllSubCategories ? categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length : Math.min(5, categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length)} shown)
+                        </span>
+                      </h2>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-slate-700">
+                            <th className="text-left py-3 px-4 text-sm font-semibold text-slate-300">Sub Category</th>
+                            <th className="text-left py-3 px-4 text-sm font-semibold text-slate-300">Main Category</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-slate-300">Spent</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-slate-300">% of Total</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-slate-300">Transactions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {categorySpending
+                            .filter(cat => categoryMap.get(cat.categoryId)?.parent_id)
+                            .slice(0, showAllSubCategories ? undefined : 5)
+                            .map((cat) => {
+                              const parentId = categoryMap.get(cat.categoryId)?.parent_id
+                              const parentCategory = parentId ? categoryMap.get(parentId) : null
+                              return (
+                                <tr key={cat.categoryId} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition">
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center space-x-2">
+                                      <span className="text-xl">{cat.categoryIcon}</span>
+                                      <span className="text-sm text-white">{cat.categoryName}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex items-center space-x-1 text-sm text-slate-300">
+                                      <span>{parentCategory?.icon || '📁'}</span>
+                                      <span>{parentCategory?.name || 'Unknown'}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-right text-sm text-white">
+                                    {getCurrencySymbol(currency)}{cat.spent.toFixed(2)}
+                                  </td>
+                                  <td className="py-3 px-4 text-right text-sm text-white">
+                                    {cat.percentage.toFixed(1)}%
+                                  </td>
+                                  <td className="py-3 px-4 text-right text-sm text-slate-400">
+                                    {cat.transactionCount}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Show More Button */}
+                    {categorySpending.filter(cat => categoryMap.get(cat.categoryId)?.parent_id).length > 5 && (
+                      <div className="mt-4 flex justify-center">
+                        <button
+                          onClick={() => setShowAllSubCategories(!showAllSubCategories)}
+                          className="flex items-center space-x-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium text-white transition"
+                        >
+                          {showAllSubCategories ? (
+                            <>
+                              <span>Show Less</span>
+                              <ChevronDown className="w-4 h-4 rotate-180" />
+                            </>
+                          ) : (
+                            <>
+                              <span>Show More</span>
+                              <ChevronDown className="w-4 h-4" />
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {categorySpending.length === 0 && (
+                  <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center col-span-1 lg:col-span-2">
+                    <AlertCircle className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+                    <p className="text-slate-400">No transaction data for this period</p>
+                  </div>
+                )}
               </div>
             )}
           </>
