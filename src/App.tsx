@@ -15,6 +15,7 @@ import Settings from './pages/Settings'
 import AdminPanel from './pages/AdminPanel'
 import Onboarding from './pages/Onboarding'
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<{
   user: User | null
   loading: boolean
@@ -25,6 +26,7 @@ export const AuthContext = createContext<{
   isAdmin: false,
 })
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const ThemeContext = createContext<{
   theme: 'light' | 'dark'
   setTheme: (theme: 'light' | 'dark') => void

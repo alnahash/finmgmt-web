@@ -49,8 +49,8 @@ export default function Analytics() {
   const [selectedPeriod, setSelectedPeriod] = useState('')
   const [showAllSubCategories, setShowAllSubCategories] = useState(false)
   const [monthStartDay, setMonthStartDay] = useState(1)
-  const [pieData, setPieData] = useState<any[]>([])
-  const [lineData, setLineData] = useState<any[]>([])
+  const [pieData, setPieData] = useState<Array<{ name: string; value: number; fill?: string }>>([])
+  const [lineData, setLineData] = useState<Array<{ date: string; amount: number }>>([])
   const [categorySpending, setCategorySpending] = useState<CategorySpending[]>([])
   const [budgetStatus, setBudgetStatus] = useState<CategorySpending[]>([])
   const [currency, setCurrency] = useState('USD')
@@ -64,7 +64,58 @@ export default function Analytics() {
 
   // Fetch initial data
   useEffect(() => {
-    fetchInitialData()
+    const initData = async () => {
+      if (!user) return
+      setLoading(true)
+
+      try {
+        // Fetch profile for currency and month start day
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('currency, month_start_day')
+          .eq('id', user.id)
+          .single()
+
+        if (profile) {
+          setCurrency(profile.currency || 'USD')
+          setMonthStartDay(profile.month_start_day || 1)
+        }
+
+        // Fetch all transactions and categories
+        const { data: txnData } = await supabase
+          .from('transactions')
+          .select('transaction_date')
+          .eq('user_id', user.id)
+
+        const { data: catData } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('user_id', user.id)
+
+        if (txnData && txnData.length > 0) {
+          const dates = txnData.map((t) => t.transaction_date)
+          setAllTransactionDates(dates)
+
+          const monthStartDayToUse = profile?.month_start_day || 1
+          const uniquePeriods = getUniquePeriodKeysByType(dates, 'monthly', monthStartDayToUse)
+          if (uniquePeriods.length > 0) {
+            setSelectedPeriod(uniquePeriods[0])
+          }
+        }
+
+        if (catData) {
+          const catMap = new Map(catData.map((c) => [c.id, c]))
+          setCategoryMap(catMap)
+        }
+
+        setLoading(false)
+      } catch (error) {
+        console.error('Error fetching initial data:', error)
+        setLoading(false)
+      }
+    }
+
+    initData()
   }, [user])
 
   // Fetch analytics when period changes
@@ -72,6 +123,7 @@ export default function Analytics() {
     if (selectedPeriod && user) {
       fetchAnalytics()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPeriod, user])
 
   // Fetch category trends when category or range changes
@@ -79,71 +131,8 @@ export default function Analytics() {
     if (selectedCategoryForTrend && user && allTransactionDates.length > 0) {
       fetchCategoryTrend()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategoryForTrend, trendPeriodRange, user, allTransactionDates])
-
-  const fetchInitialData = async () => {
-    if (!user) return
-    setLoading(true)
-
-    try {
-      // Fetch profile for currency and month start day
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('currency, month_start_day')
-        .eq('id', user.id)
-        .single()
-
-      if (profile) {
-        setCurrency(profile.currency || 'USD')
-        setMonthStartDay(profile.month_start_day || 1)
-      }
-
-      // Fetch categories
-      const { data: cats } = await supabase
-        .from('categories')
-        .select('id, name, icon, color, parent_id, type')
-        .eq('user_id', user.id)
-
-      const catMap = new Map()
-      cats?.forEach((cat) => {
-        catMap.set(cat.id, {
-          id: cat.id,
-          name: cat.name,
-          icon: cat.icon,
-          color: cat.color || '#f97316',
-          parent_id: cat.parent_id,
-          type: cat.type || 'expense',
-        })
-      })
-      setCategoryMap(catMap)
-
-      // Fetch all transactions to get available periods
-      const { data: allTxns } = await supabase
-        .from('transactions')
-        .select('transaction_date')
-        .eq('user_id', user.id)
-
-      const monthStartDayToUse = profile?.month_start_day || 1
-      if (allTxns && allTxns.length > 0) {
-        const txnDates = allTxns.map((t) => t.transaction_date)
-        setAllTransactionDates(txnDates)
-        const availablePeriods = getUniquePeriodKeysByType(
-          txnDates,
-          'monthly',
-          monthStartDayToUse
-        )
-
-        // Select the first (most recent) period
-        if (availablePeriods.length > 0) {
-          setSelectedPeriod(availablePeriods[0])
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching initial data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const fetchAnalytics = async () => {
     if (!user || !selectedPeriod) return
@@ -174,15 +163,13 @@ export default function Analytics() {
       const uniqueDays = new Set<string>()
 
       let totalSpent = 0 // Total expenses only
-      let totalIncome = 0 // Total income only
       txns.forEach((t) => {
         // Separate by category type (income vs expense)
         const cat = categoryMap.get(t.category_id)
         const isIncome = cat?.type === 'income'
 
         if (isIncome) {
-          // Income transaction
-          totalIncome += t.amount
+          // Income transaction - tracked separately but not summed for totalSpent
           const current = categoryIncomeMap.get(t.category_id) || { amount: 0, count: 0 }
           categoryIncomeMap.set(t.category_id, {
             amount: current.amount + t.amount,
@@ -502,8 +489,8 @@ export default function Analytics() {
                       <YAxis stroke="#94a3b8" />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                        formatter={(value: any) => `${getCurrencySymbol(currency)}${typeof value === 'number' ? value.toFixed(2) : parseFloat(value as string).toFixed(2)}`}
-                        labelFormatter={(label: any) => `${label}`}
+                        formatter={(value: number | string) => `${getCurrencySymbol(currency)}${typeof value === 'number' ? value.toFixed(2) : parseFloat(value).toFixed(2)}`}
+                        labelFormatter={(label: string) => `${label}`}
                       />
                       <Line
                         type="monotone"

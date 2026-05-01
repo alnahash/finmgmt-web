@@ -130,7 +130,10 @@ export default function Categories() {
         ICON_KEYWORDS[emoji]?.toLowerCase().includes(iconSearch.toLowerCase())
       )
 
-  useEffect(() => { fetchCategories() }, [user])
+  useEffect(() => {
+    fetchCategories()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   const fetchCategories = async () => {
     if (!user) return

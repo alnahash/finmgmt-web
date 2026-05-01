@@ -16,6 +16,15 @@ interface Transaction {
   category_icon?: string
 }
 
+interface PendingTransaction {
+  user_id: string
+  amount: number
+  currency: string
+  description: string
+  transaction_date: string
+  category_id: string
+}
+
 interface Category {
   id: string
   name: string
@@ -44,7 +53,7 @@ export default function Transactions() {
   const [importing, setImporting] = useState(false)
   const [showCurrencyModal, setShowCurrencyModal] = useState(false)
   const [currencyRates, setCurrencyRates] = useState({ USD: 1, AED: 1, BHD: 1 })
-  const [pendingTransactions, setPendingTransactions] = useState<any[]>([])
+  const [pendingTransactions, setPendingTransactions] = useState<PendingTransaction[]>([])
   const [view, setView] = useState<'list' | 'card' | 'table' | 'calendar' | 'stats'>('table')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [userCurrency, setUserCurrency] = useState('BHD')
@@ -61,6 +70,7 @@ export default function Transactions() {
 
   useEffect(() => {
     fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   // Clear month filter when monthStartDay changes, as period options would have changed
@@ -567,7 +577,7 @@ export default function Transactions() {
     }
   }
 
-  const importTransactions = async (txns: any[], rates: any) => {
+  const importTransactions = async (txns: PendingTransaction[], rates: Record<string, number>) => {
     try {
       // Convert amounts to BHD using proper formula
       const converted = txns.map(txn => ({
@@ -575,7 +585,8 @@ export default function Transactions() {
         amount: txn.currency === 'BHD' ? txn.amount : txn.amount * rates[txn.currency],
       }))
 
-      // Remove currency field before inserting
+      // Remove currency field before inserting (exclude it from the insert)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const toInsert = converted.map(({ currency, ...rest }) => rest)
 
       // Insert in batches of 100

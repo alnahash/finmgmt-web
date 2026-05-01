@@ -37,6 +37,15 @@ interface GroupedCategory {
   subCategories: CategoryWithBudget[]
 }
 
+interface BudgetFormData {
+  id?: string
+  category_id?: string
+  amount: string
+  month_period_key?: string
+  is_recurring?: boolean
+  frequency?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+}
+
 const FREQUENCY_COLORS: Record<string, string> = {
   daily: '#f97316', // orange
   weekly: '#10b981', // green
@@ -57,11 +66,12 @@ export default function Budgets() {
   const [frequencyFilter, setFrequencyFilter] = useState('all')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [editingCategory, setEditingCategory] = useState<string | null>(null)
-  const [editFormData, setEditFormData] = useState<Partial<Budget>>({})
+  const [editFormData, setEditFormData] = useState<BudgetFormData>({ amount: '' })
   const [showCopyConfirm, setShowCopyConfirm] = useState(false)
 
   useEffect(() => {
     fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   const fetchData = async () => {
@@ -177,6 +187,7 @@ export default function Budgets() {
     setEditingCategory(budget.category_id)
     setEditFormData({
       ...budget,
+      amount: String(budget.amount),
     })
   }
 
@@ -187,7 +198,7 @@ export default function Budgets() {
       const { error } = await supabase
         .from('budgets')
         .update({
-          amount: parseFloat(editFormData.amount as any),
+          amount: parseFloat(String(editFormData.amount)),
           frequency: editFormData.frequency,
           is_recurring: editFormData.is_recurring,
           month_period_key: editFormData.month_period_key,
@@ -400,7 +411,7 @@ export default function Budgets() {
                                 onChange={(e) =>
                                   setEditFormData({
                                     ...editFormData,
-                                    frequency: e.target.value as any,
+                                    frequency: e.target.value as 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly',
                                   })
                                 }
                                 className="px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm"
@@ -417,7 +428,7 @@ export default function Budgets() {
                                 step="0.01"
                                 value={editFormData.amount || ''}
                                 onChange={(e) =>
-                                  setEditFormData({ ...editFormData, amount: e.target.value as any })
+                                  setEditFormData({ ...editFormData, amount: e.target.value })
                                 }
                                 placeholder="0.00"
                                 className="w-20 px-2 py-1 bg-slate-700 border border-slate-600 rounded text-white text-sm"
