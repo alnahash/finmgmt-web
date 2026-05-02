@@ -39,11 +39,11 @@ function timeAgo(dateStr: string | null): string {
 }
 
 function StatusBadge({ lastLogin }: { lastLogin: string | null }) {
-  if (!lastLogin) return <span className="px-2 py-0.5 text-xs rounded-full bg-slate-700 text-slate-400">Never</span>
+  if (!lastLogin) return <span className="px-2 py-0.5 text-xs rounded-full bg-slate-700 text-slate-400 whitespace-nowrap">Never</span>
   const hrs = (Date.now() - new Date(lastLogin).getTime()) / 3600000
-  if (hrs < 24) return <span className="px-2 py-0.5 text-xs rounded-full bg-green-900 text-green-400">Active today</span>
-  if (hrs < 168) return <span className="px-2 py-0.5 text-xs rounded-full bg-blue-900 text-blue-400">This week</span>
-  return <span className="px-2 py-0.5 text-xs rounded-full bg-slate-700 text-slate-400">Inactive</span>
+  if (hrs < 24) return <span className="px-2 py-0.5 text-xs rounded-full bg-green-900 text-green-400 whitespace-nowrap">Active</span>
+  if (hrs < 168) return <span className="px-2 py-0.5 text-xs rounded-full bg-blue-900 text-blue-400 whitespace-nowrap">This week</span>
+  return <span className="px-2 py-0.5 text-xs rounded-full bg-slate-700 text-slate-400 whitespace-nowrap">Inactive</span>
 }
 
 export default function AdminPanel() {
