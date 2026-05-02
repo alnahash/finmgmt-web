@@ -195,10 +195,66 @@ export default function FinAI() {
     return formatCurrency(amount, profile?.currency || 'USD')
   }
 
+  // ============== PERIOD PARSING ==============
+
+  const MONTH_NAMES = [
+    'january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december',
+  ]
+
+  const parseMonthAndYear = (text: string): { month: number; year: number } | null => {
+    const lower = text.toLowerCase()
+
+    // Try to find month name
+    let monthIndex = -1
+    for (let i = 0; i < MONTH_NAMES.length; i++) {
+      if (lower.includes(MONTH_NAMES[i])) {
+        monthIndex = i
+        break
+      }
+    }
+
+    if (monthIndex === -1) return null
+
+    // Try to find year (4-digit number)
+    const yearMatch = text.match(/\b(202[0-9]|202[0-9])\b/)
+    const year = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear()
+
+    return { month: monthIndex + 1, year }
+  }
+
+  const getPeriodForMonthYear = (month: number, year: number): { startDate: string; endDate: string; label: string } => {
+    if (!profile) return { startDate: '', endDate: '', label: '' }
+
+    // Create a date in the specified month
+    const dateInMonth = new Date(year, month - 1, 15) // 15th of the month
+    const dateStr = dateInMonth.toISOString().split('T')[0]
+    const periodKey = getMonthPeriodKey(dateStr, profile.month_start_day)
+    const { startDate, endDate } = getPeriodDateRange(periodKey)
+
+    const monthName = MONTH_NAMES[month - 1].charAt(0).toUpperCase() + MONTH_NAMES[month - 1].slice(1)
+    return { startDate, endDate, label: `${monthName} ${year}` }
+  }
+
   // ============== INTENT DETECTION ==============
 
   const detectIntent = (text: string): string => {
     const lower = text.toLowerCase()
+
+    // Check for specific month/year first
+    if (parseMonthAndYear(text)) {
+      // If there's a month/year, check what they're asking about
+      if (/biggest|top|highest|most.*spend|most.*expensive|where.*money/.test(lower)) {
+        return 'top_categories_specific_month'
+      }
+      if (/spent|spend|spending|expense|expenses|cost|paid/.test(lower)) {
+        return 'total_spent_specific_month'
+      }
+      if (/save|saving|saved|net|income.*expense/.test(lower)) {
+        return 'savings_specific_month'
+      }
+      return 'total_spent_specific_month' // default for specific month
+    }
 
     // Greeting
     if (/^(hi|hello|hey|greetings|good (morning|afternoon|evening))\b/.test(lower)) {
@@ -314,6 +370,33 @@ export default function FinAI() {
         : getCurrentPeriod()
 
     switch (intent) {
+      case 'top_categories_specific_month': {
+        const parsed = parseMonthAndYear(userMessage)
+        if (parsed) {
+          const { startDate, endDate, label } = getPeriodForMonthYear(parsed.month, parsed.year)
+          return generateTopCategoriesResponse(startDate, endDate, label)
+        }
+        return 'Could not parse the month/year. Try "March 2025" or "April 2024".'
+      }
+
+      case 'total_spent_specific_month': {
+        const parsed = parseMonthAndYear(userMessage)
+        if (parsed) {
+          const { startDate, endDate, label } = getPeriodForMonthYear(parsed.month, parsed.year)
+          return generateTotalSpentResponse(startDate, endDate, label)
+        }
+        return 'Could not parse the month/year. Try "March 2025" or "April 2024".'
+      }
+
+      case 'savings_specific_month': {
+        const parsed = parseMonthAndYear(userMessage)
+        if (parsed) {
+          const { startDate, endDate, label } = getPeriodForMonthYear(parsed.month, parsed.year)
+          return generateSavingsResponse(startDate, endDate, label)
+        }
+        return 'Could not parse the month/year. Try "March 2025" or "April 2024".'
+      }
+
       case 'greeting':
         return `Hello! 😊 I'm here to help you understand your finances. Try asking me about your spending, savings, or specific categories.`
 
