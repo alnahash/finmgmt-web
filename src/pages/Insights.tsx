@@ -40,16 +40,9 @@ interface UserProfile {
   id: string
   full_name: string | null
   email: string | null
-  phone: string | null
-  date_of_birth: string | null
-  occupation: string | null
   currency: string
   monthly_budget: number
   month_start_day: number
-  theme: 'light' | 'dark'
-  is_admin: boolean
-  created_at: string | null
-  updated_at: string | null
 }
 
 interface MonthlyData {
@@ -102,7 +95,7 @@ export default function Insights() {
     try {
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('id, full_name, email, phone, date_of_birth, occupation, currency, monthly_budget, month_start_day, theme, is_admin, created_at, updated_at')
+        .select('id, full_name, email, currency, monthly_budget, month_start_day')
         .eq('id', user.id)
         .single()
 
@@ -285,8 +278,6 @@ export default function Insights() {
     let text = `User Profile:
 Name: ${profile.full_name || 'Friend'}
 Email: ${profile.email || 'Not provided'}
-Occupation: ${profile.occupation || 'Not specified'}
-Account Created: ${profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Unknown'}
 
 Financial Analysis (Last ${monthsAnalyzed} months):
 
