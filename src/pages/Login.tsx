@@ -40,6 +40,11 @@ export default function Login() {
             <p className="text-slate-400">Smart Expense Tracking</p>
           </div>
 
+          {/* Info Message */}
+          <div className="mb-4 p-3 bg-blue-900/30 border border-blue-700 rounded text-blue-200 text-xs">
+            💡 If you just signed up, check your email to verify your account before logging in. Check your spam folder if you don't see it.
+          </div>
+
           {/* Error */}
           {error && (
             <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded text-red-200 text-sm">

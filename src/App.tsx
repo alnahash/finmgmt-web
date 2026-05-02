@@ -6,7 +6,6 @@ import type { User } from '@supabase/supabase-js'
 // Pages
 import Login from './pages/Login'
 import Signup from './pages/Signup'
-import EmailVerification from './pages/EmailVerification'
 import Dashboard from './pages/Dashboard'
 import Transactions from './pages/Transactions'
 import Categories from './pages/Categories'
