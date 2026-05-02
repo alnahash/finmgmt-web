@@ -100,36 +100,69 @@ export default function AdminPanel() {
     try {
       // Delete all user data from the database
       // Delete in order of foreign key dependencies
-      await supabase.from('transactions').delete().eq('user_id', userId)
-      await supabase.from('budgets').delete().eq('user_id', userId)
-      await supabase.from('categories').delete().eq('user_id', userId)
-      await supabase.from('login_events').delete().eq('user_id', userId)
-      await supabase.from('profiles').delete().eq('id', userId)
+      console.log('Deleting user:', userId)
+
+      // Delete transactions
+      const txResult = await supabase.from('transactions').delete().eq('user_id', userId)
+      console.log('Deleted transactions:', txResult)
+
+      // Delete budgets
+      const budgResult = await supabase.from('budgets').delete().eq('user_id', userId)
+      console.log('Deleted budgets:', budgResult)
+
+      // Delete categories
+      const catResult = await supabase.from('categories').delete().eq('user_id', userId)
+      console.log('Deleted categories:', catResult)
+
+      // Delete login_events
+      const loginResult = await supabase.from('login_events').delete().eq('user_id', userId)
+      console.log('Deleted login_events:', loginResult)
+
+      // Delete profile
+      const profileResult = await supabase.from('profiles').delete().eq('id', userId)
+      console.log('Deleted profile:', profileResult)
+
+      if (profileResult.error) {
+        console.error('Profile deletion error:', profileResult.error)
+        throw new Error(`Failed to delete profile: ${profileResult.error.message}`)
+      }
 
       // Delete the user from authentication
       // This requires calling an edge function or using the admin API
-      await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          },
-          body: JSON.stringify({ userId }),
-        }
-      ).catch(() => null)
+      try {
+        const authDeleteResponse = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            },
+            body: JSON.stringify({ userId }),
+          }
+        )
+        console.log('Auth delete response:', authDeleteResponse.status)
+      } catch (authError) {
+        console.warn('Edge function delete failed (non-critical):', authError)
+        // Non-critical - database deletion already succeeded
+      }
 
-      // If edge function doesn't exist, the data deletion still succeeded
-      // Remove user from local state
-      setUsers(users.filter(u => u.id !== userId))
+      // Remove user from local state immediately
+      const updatedUsers = users.filter(u => u.id !== userId)
+      setUsers(updatedUsers)
       setDeleteConfirm(null)
 
-      // Refresh stats
-      fetchAdminData()
+      // Refresh all data from database to ensure consistency
+      console.log('Refreshing admin data...')
+      await new Promise(resolve => setTimeout(resolve, 500)) // Small delay to ensure DB is updated
+      await fetchAdminData()
+
+      alert('✅ User deleted successfully!')
     } catch (error) {
       console.error('Error deleting user:', error)
-      alert('Failed to delete user. Some data may have been deleted. Error: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      alert('Failed to delete user: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      // Still try to refresh in case some data was deleted
+      await fetchAdminData()
     } finally {
       setDeleting(false)
     }
