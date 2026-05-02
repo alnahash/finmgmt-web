@@ -15,6 +15,7 @@ interface UserAdminStats {
   last_login_at: string | null
   transaction_count: number
   total_spending: number
+  is_admin: boolean
 }
 
 interface AppStats {
@@ -59,6 +60,8 @@ export default function AdminPanel() {
   const [currency, setCurrency] = useState('USD')
   const [deleteConfirm, setDeleteConfirm] = useState<{ userId: string; email: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [togglingAdmin, setTogglingAdmin] = useState<string | null>(null)
+  const isOwner = user?.email?.toLowerCase() === 'alnahash@gmail.com'
 
   useEffect(() => {
     if (user) {
@@ -66,6 +69,31 @@ export default function AdminPanel() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
+
+  const toggleAdminStatus = async (userId: string, currentStatus: boolean) => {
+    if (!isOwner) {
+      alert('Only the owner can manage admin users')
+      return
+    }
+
+    setTogglingAdmin(userId)
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_admin: !currentStatus })
+        .eq('id', userId)
+
+      if (error) throw error
+
+      // Update local state
+      setUsers(users.map(u => u.id === userId ? { ...u, is_admin: !currentStatus } : u))
+    } catch (error) {
+      console.error('Error toggling admin status:', error)
+      alert('Failed to update admin status: ' + (error instanceof Error ? error.message : 'Unknown error'))
+    } finally {
+      setTogglingAdmin(null)
+    }
+  }
 
   const deleteUser = async (userId: string) => {
     setDeleting(true)
@@ -151,6 +179,15 @@ export default function AdminPanel() {
         )
       )
 
+      // Fetch is_admin status from profiles table
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, is_admin')
+
+      const adminMap = new Map(
+        (profiles || []).map((p: { id: string; is_admin: boolean }) => [p.id, p.is_admin || false])
+      )
+
       const enriched: UserAdminStats[] = (authStats || []).map((u: UserAdminStats, i: number) => ({
         ...u,
         login_count: Number(u.login_count),
@@ -159,6 +196,7 @@ export default function AdminPanel() {
           const catType = categoryTypeMap.get(t.category_id)
           return catType === 'income' ? s : s + t.amount
         }, 0) || 0,
+        is_admin: adminMap.get(u.id) || false,
       }))
 
       setUsers(enriched)
@@ -283,6 +321,7 @@ export default function AdminPanel() {
                       <th className="px-5 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wide">Logins</th>
                       <th className="px-5 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wide">Transactions</th>
                       <th className="px-5 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wide">Spending</th>
+                      <th className="px-5 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wide">Admin</th>
                       <th className="px-5 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wide">Actions</th>
                     </tr>
                   </thead>
@@ -321,6 +360,38 @@ export default function AdminPanel() {
                         <td className="px-5 py-4 text-right text-sm text-white">{user.transaction_count}</td>
                         <td className="px-5 py-4 text-right text-sm text-white font-medium">
                           {getCurrencySymbol(currency)}{user.total_spending.toFixed(2)}
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          {isOwner ? (
+                            <button
+                              onClick={() => toggleAdminStatus(user.id, user.is_admin)}
+                              disabled={togglingAdmin === user.id}
+                              className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg transition ${
+                                user.is_admin
+                                  ? 'bg-purple-900/30 text-purple-400 hover:bg-purple-900/50'
+                                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                              } disabled:opacity-50`}
+                              title={isOwner ? 'Click to toggle admin status' : 'Only owner can manage admins'}
+                            >
+                              {togglingAdmin === user.id ? (
+                                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Shield className="w-3.5 h-3.5" />
+                              )}
+                              <span className="text-xs font-medium">
+                                {user.is_admin ? 'Admin' : 'User'}
+                              </span>
+                            </button>
+                          ) : (
+                            <span className={`inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-medium ${
+                              user.is_admin
+                                ? 'bg-purple-900/30 text-purple-400'
+                                : 'bg-slate-700 text-slate-400'
+                            }`}>
+                              <Shield className="w-3.5 h-3.5" />
+                              <span>{user.is_admin ? 'Admin' : 'User'}</span>
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-4 text-center">
                           <button

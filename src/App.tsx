@@ -46,7 +46,7 @@ function App() {
     // Check if user is logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user || null)
-      checkAdmin(session?.user?.email)
+      checkAdmin(session?.user?.email, session?.user?.id)
       setLoading(false)
     })
 
@@ -55,7 +55,7 @@ function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user || null)
-      checkAdmin(session?.user?.email)
+      checkAdmin(session?.user?.email, session?.user?.id)
       if (session?.user) {
         fetchAndSetTheme(session.user.id)
       }
@@ -70,10 +70,34 @@ function App() {
     return () => subscription?.unsubscribe()
   }, [])
 
-  const checkAdmin = (email?: string) => {
+  const checkAdmin = async (email?: string, userId?: string) => {
+    // First check environment variable (backward compatibility)
     const envAdmins = import.meta.env.VITE_ADMIN_EMAILS?.split(',').map((e: string) => e.trim()).filter(Boolean) || []
-    const admins = envAdmins.length > 0 ? envAdmins : ['alnahash@gmail.com']
-    setIsAdmin(email ? admins.includes(email.toLowerCase()) : false)
+    const defaultAdmins = envAdmins.length > 0 ? envAdmins : ['alnahash@gmail.com']
+    const isEnvAdmin = email ? defaultAdmins.includes(email.toLowerCase()) : false
+
+    if (isEnvAdmin) {
+      setIsAdmin(true)
+      return
+    }
+
+    // Then check database is_admin flag (for user-managed admins)
+    if (userId) {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', userId)
+          .single()
+
+        setIsAdmin(data?.is_admin || false)
+      } catch (error) {
+        console.error('Error checking admin status:', error)
+        setIsAdmin(false)
+      }
+    } else {
+      setIsAdmin(false)
+    }
   }
 
   const fetchAndSetTheme = async (userId: string) => {
