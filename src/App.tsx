@@ -6,11 +6,13 @@ import type { User } from '@supabase/supabase-js'
 // Pages
 import Login from './pages/Login'
 import Signup from './pages/Signup'
+import EmailVerification from './pages/EmailVerification'
 import Dashboard from './pages/Dashboard'
 import Transactions from './pages/Transactions'
 import Categories from './pages/Categories'
 import Budgets from './pages/Budgets'
 import Analytics from './pages/Analytics'
+import SpendingVsSaving from './pages/SpendingVsSaving'
 import Settings from './pages/Settings'
 import AdminPanel from './pages/AdminPanel'
 import Onboarding from './pages/Onboarding'
@@ -125,9 +127,11 @@ function App() {
             <>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/auth/confirm" element={<EmailVerification />} />
               <Route path="*" element={<Navigate to="/login" />} />
             </>
           ) : (
+            // User logged in - allow full app access
             <>
               <Route path="/onboarding" element={<Onboarding />} />
               <Route path="/" element={<Dashboard />} />
@@ -135,6 +139,7 @@ function App() {
               <Route path="/categories" element={<Categories />} />
               <Route path="/budgets" element={<Budgets />} />
               <Route path="/analytics" element={<Analytics />} />
+              <Route path="/spending-vs-saving" element={<SpendingVsSaving />} />
               <Route path="/settings" element={<Settings />} />
               {isAdmin && <Route path="/admin" element={<AdminPanel />} />}
               <Route path="*" element={<Navigate to="/" />} />
