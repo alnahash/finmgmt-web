@@ -127,7 +127,6 @@ function App() {
             <>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
-              <Route path="/auth/confirm" element={<EmailVerification />} />
               <Route path="*" element={<Navigate to="/login" />} />
             </>
           ) : (
