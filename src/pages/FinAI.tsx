@@ -14,6 +14,7 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+  isAI?: boolean
 }
 
 interface Category {
@@ -337,6 +338,7 @@ Provide a helpful, concise, and friendly response. Use the currency symbol (${pr
       role: 'assistant',
       content: response,
       timestamp: new Date(),
+      isAI: usingGroq,
     }
     setMessages((prev) => [...prev, assistantMsg])
     setLoading(false)
@@ -480,7 +482,7 @@ Provide a helpful, concise, and friendly response. Use the currency symbol (${pr
                     >
                       {renderContent(msg.content)}
                     </div>
-                    {msg.role === 'assistant' && usingGroq && msg.id === messages[messages.length - 1]?.id && (
+                    {msg.role === 'assistant' && msg.isAI && (
                       <div className="text-xs text-slate-500 mt-1 ml-1">
                         ⚡ Powered by Groq AI
                       </div>
