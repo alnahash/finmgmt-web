@@ -51,6 +51,9 @@ const SUGGESTED_QUESTIONS = [
   'Show me recent transactions',
   'How much do I spend on average?',
   'What categories use my budget the most?',
+  'What\'s my savings rate?',
+  'How is my spending trending?',
+  'Which categories increased?',
 ]
 
 export default function FinAI() {
@@ -305,6 +308,90 @@ export default function FinAI() {
     return formatCurrency(amount, profile?.currency || 'USD')
   }
 
+  // ============== CALCULATION HELPERS FOR PHASE 1 ==============
+
+  const calculateSavingsRate = (earned: number, spent: number): number => {
+    return earned > 0 ? ((earned - spent) / earned) * 100 : 0
+  }
+
+  const calculateExpenseRatio = (earned: number, spent: number): number => {
+    return earned > 0 ? (spent / earned) * 100 : 0
+  }
+
+  const calculateBudgetRemaining = (): number => {
+    if (!profile) return 0
+    const currentPeriod = getCurrentPeriod()
+    const spent = sumAmount(
+      getTransactionsInRange(currentPeriod.startDate, currentPeriod.endDate, 'expense')
+    )
+    return (profile.monthly_budget || 0) - spent
+  }
+
+  const calculateBudgetUsedPercent = (): number => {
+    if (!profile || !profile.monthly_budget) return 0
+    const currentPeriod = getCurrentPeriod()
+    const spent = sumAmount(
+      getTransactionsInRange(currentPeriod.startDate, currentPeriod.endDate, 'expense')
+    )
+    return (spent / profile.monthly_budget) * 100
+  }
+
+  const getTopCategoryThisMonth = (): { category: Category; amount: number } | null => {
+    const currentPeriod = getCurrentPeriod()
+    const currentExpenses = getTransactionsInRange(
+      currentPeriod.startDate,
+      currentPeriod.endDate,
+      'expense'
+    )
+    const breakdown = getCategoryBreakdown(currentExpenses)
+    return breakdown.length > 0 ? { category: breakdown[0].category, amount: breakdown[0].amount } : null
+  }
+
+  const getTop3CategoriesWithChange = (): Array<{
+    category: Category
+    amount: number
+    previousAmount: number
+    changePercent: number
+  }> => {
+    const currentPeriod = getCurrentPeriod()
+    const previousPeriod = getPreviousPeriod()
+
+    const currentExpenses = getTransactionsInRange(
+      currentPeriod.startDate,
+      currentPeriod.endDate,
+      'expense'
+    )
+    const previousExpenses = getTransactionsInRange(
+      previousPeriod.startDate,
+      previousPeriod.endDate,
+      'expense'
+    )
+
+    const currentBreakdown = getCategoryBreakdown(currentExpenses)
+    const previousMap = new Map<string, number>()
+
+    getCategoryBreakdown(previousExpenses).forEach((item) => {
+      previousMap.set(item.category.id, item.amount)
+    })
+
+    return currentBreakdown.slice(0, 3).map((item) => {
+      const previousAmount = previousMap.get(item.category.id) || 0
+      const changePercent =
+        previousAmount > 0
+          ? ((item.amount - previousAmount) / previousAmount) * 100
+          : item.amount > 0
+          ? 100
+          : 0
+
+      return {
+        category: item.category,
+        amount: item.amount,
+        previousAmount,
+        changePercent,
+      }
+    })
+  }
+
 
   // ============== GROQ API INTEGRATION ==============
   // All questions route through Groq AI for intelligent responses
@@ -348,7 +435,17 @@ If users ask you to perform actions like "create a category" or "add a transacti
 - Politely explain that you cannot perform actions
 - Suggest they use the appropriate app feature instead (e.g., "Please create this category in the Categories page, then I can analyze it")
 
-Be concise and friendly. Use currency symbols correctly: BHD (Bahraini Dinar), USD ($), EUR (€), etc.`,
+RESPONSE FORMATTING:
+- Be concise and friendly
+- Use currency symbols correctly: BHD (Bahraini Dinar), USD ($), EUR (€), etc.
+- Format spending lists as tables with emoji icons:
+  🍽️  Dining:        BHD 450.00 (↑15%)
+  🚗 Transport:     BHD 320.00 (→ same)
+  🎬 Entertainment: BHD 200.00 (↓5%)
+- Use ↑ for increases, ↓ for decreases, → for no change
+- Include confidence levels for predictions: "Based on X months of data, I'm 85% confident that..."
+- Use bullet points for lists
+- Highlight key insights and actionable recommendations`,
             },
             {
               role: 'user',
@@ -406,6 +503,25 @@ Be concise and friendly. Use currency symbols correctly: BHD (Bahraini Dinar), U
       const allTimeExpenses = getTransactionsInRange('1900-01-01', '2100-01-01', 'expense')
       const allTimeSpent = sumAmount(allTimeExpenses)
 
+      // Phase 1: Calculate advanced metrics
+      const savingsRate = calculateSavingsRate(currentEarned, currentSpent)
+      const expenseRatio = calculateExpenseRatio(currentEarned, currentSpent)
+      const budgetRemaining = calculateBudgetRemaining()
+      const budgetUsedPercent = calculateBudgetUsedPercent()
+      const top3Categories = getTop3CategoriesWithChange()
+
+      // Format top 3 categories with change indicators
+      const top3Text = top3Categories.length > 0
+        ? top3Categories
+          .map(
+            (item) =>
+              `${item.category.name}: ${formatCurrency(item.amount, profile.currency)} (${
+                item.changePercent > 0 ? '↑' : item.changePercent < 0 ? '↓' : '→'
+              } ${Math.abs(item.changePercent).toFixed(1)}%)`
+          )
+          .join(', ')
+        : 'No spending yet'
+
       const financialContext = `
 User Profile:
 - Name: ${profile.full_name || 'Friend'}
@@ -414,13 +530,27 @@ User Profile:
 User's Financial Summary:
 - Currency: ${profile.currency}
 - Monthly Budget: ${formatCurrency(profile.monthly_budget, profile.currency)}
-- This Month Spent: ${formatCurrency(currentSpent, profile.currency)} (${currentExpenses.length} transactions)
-- This Month Earned: ${formatCurrency(currentEarned, profile.currency)}
-- Last Month Spent: ${formatCurrency(previousSpent, profile.currency)}
+- Budget Used: ${budgetUsedPercent.toFixed(1)}% (${formatCurrency(budgetRemaining, profile.currency)} remaining)
+
+Current Period (This Month):
+- Earned: ${formatCurrency(currentEarned, profile.currency)}
+- Spent: ${formatCurrency(currentSpent, profile.currency)}
+- Saved: ${formatCurrency(currentEarned - currentSpent, profile.currency)}
+- Savings Rate: ${savingsRate.toFixed(1)}%
+- Expense Ratio: ${expenseRatio.toFixed(1)}%
+- Transactions: ${currentExpenses.length} expense(s), ${currentIncome.length} income
+
+Previous Period (Last Month):
+- Spent: ${formatCurrency(previousSpent, profile.currency)}
+- Change: ${previousSpent > 0 ? ((currentSpent - previousSpent) / previousSpent * 100).toFixed(1) : 0}%
+
+Top 3 Spending Categories This Month (with change):
+${top3Text}
+
+Overall:
 - All-Time Spent: ${formatCurrency(allTimeSpent, profile.currency)}
-- Top Category This Month: ${topCategoryText}
 - Total Transactions: ${transactions.length}
-- Categories: ${categories.filter(c => c.type === 'expense').map(c => c.name).join(', ')}`
+- Expense Categories: ${categories.filter(c => c.type === 'expense').map(c => c.name).join(', ')}`
 
       const groqPrompt = `You are a read-only financial analysis assistant. You can only analyze and discuss data — you CANNOT create, modify, or delete categories, transactions, or any other data.
 
@@ -496,25 +626,58 @@ RESPONSE GUIDELINES:
     }
   }
 
-  // Render message content with basic markdown (bold)
+  // Render message content with enhanced markdown (bold, lists, tables, emojis)
   const renderContent = (content: string) => {
     const lines = content.split('\n')
     return lines.map((line, i) => {
-      const parts = line.split(/(\*\*[^*]+\*\*)/g)
+      const trimmed = line.trim()
+
+      // Handle bullet points
+      if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+        return (
+          <div key={i} className="ml-4 text-slate-200">
+            <span className="text-primary-400">•</span> {renderLineContent(trimmed.substring(2))}
+          </div>
+        )
+      }
+
+      // Handle numbered lists
+      if (/^\d+\.\s/.test(trimmed)) {
+        const content = trimmed.replace(/^\d+\.\s/, '')
+        return (
+          <div key={i} className="ml-4 text-slate-200">
+            {renderLineContent(content)}
+          </div>
+        )
+      }
+
+      // Handle empty lines
+      if (trimmed === '') {
+        return <div key={i} className="h-2" />
+      }
+
+      // Handle regular lines with bold and formatting
       return (
-        <div key={i} className={line.trim() === '' ? 'h-2' : ''}>
-          {parts.map((part, j) => {
-            if (part.startsWith('**') && part.endsWith('**')) {
-              return (
-                <strong key={j} className="text-white font-semibold">
-                  {part.slice(2, -2)}
-                </strong>
-              )
-            }
-            return <span key={j}>{part}</span>
-          })}
+        <div key={i} className="text-slate-200">
+          {renderLineContent(trimmed)}
         </div>
       )
+    })
+  }
+
+  // Helper to render line content with bold text, links, and preserved emojis
+  const renderLineContent = (text: string) => {
+    const parts = text.split(/(\*\*[^*]+\*\*)/g)
+    return parts.map((part, j) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <strong key={j} className="text-white font-semibold">
+            {part.slice(2, -2)}
+          </strong>
+        )
+      }
+      // Preserve emojis and numbers in currency formatting
+      return <span key={j}>{part}</span>
     })
   }
 
@@ -532,6 +695,76 @@ RESPONSE GUIDELINES:
             </div>
           </div>
         </div>
+
+        {/* Quick Stats Card - Phase 1 */}
+        {dataLoaded && profile && (
+          <div className="bg-gradient-to-r from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-4 mb-4">
+            <div className="grid grid-cols-3 gap-4">
+              {/* Top Category */}
+              <div>
+                <div className="text-xs text-slate-400 mb-1">Top Category</div>
+                {getTopCategoryThisMonth() ? (
+                  <div>
+                    <div className="text-lg font-semibold text-white">
+                      {getTopCategoryThisMonth()!.category.icon} {getTopCategoryThisMonth()!.category.name}
+                    </div>
+                    <div className="text-sm text-slate-300">
+                      {formatCurrencyAmount(getTopCategoryThisMonth()!.amount)}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-slate-500">No spending</div>
+                )}
+              </div>
+
+              {/* Budget Status */}
+              <div>
+                <div className="text-xs text-slate-400 mb-1">Budget Status</div>
+                <div className="mb-2">
+                  <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${
+                        calculateBudgetUsedPercent() > 100
+                          ? 'bg-red-500'
+                          : calculateBudgetUsedPercent() > 80
+                          ? 'bg-yellow-500'
+                          : 'bg-green-500'
+                      }`}
+                      style={{ width: `${Math.min(calculateBudgetUsedPercent(), 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
+                <div className="text-sm text-white">
+                  {calculateBudgetUsedPercent().toFixed(0)}% • {formatCurrencyAmount(calculateBudgetRemaining())} left
+                </div>
+              </div>
+
+              {/* Savings Rate */}
+              <div>
+                <div className="text-xs text-slate-400 mb-1">Savings Rate</div>
+                <div className="text-lg font-semibold text-green-400">
+                  {calculateSavingsRate(
+                    sumAmount(
+                      getTransactionsInRange(
+                        getCurrentPeriod().startDate,
+                        getCurrentPeriod().endDate,
+                        'income'
+                      )
+                    ),
+                    sumAmount(
+                      getTransactionsInRange(
+                        getCurrentPeriod().startDate,
+                        getCurrentPeriod().endDate,
+                        'expense'
+                      )
+                    )
+                  ).toFixed(1)}%
+                </div>
+                <div className="text-xs text-slate-400">of income saved</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats Bar */}
         {dataLoaded && profile && (
