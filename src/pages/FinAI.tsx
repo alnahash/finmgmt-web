@@ -428,9 +428,6 @@ Provide a helpful, concise, and friendly response. Use the currency symbol (${pr
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">FinAI</h1>
-              <p className="text-sm text-slate-400">
-                Your personal finance assistant • No external APIs • 100% private
-              </p>
             </div>
           </div>
         </div>
