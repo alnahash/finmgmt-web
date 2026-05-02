@@ -518,13 +518,12 @@ export default function FinAI() {
       spendingByCategory.set(t.category_id, amounts)
     })
 
-    // Detect unusually large transactions (>2 std devs from mean)
+    // Detect unusually large transactions using adaptive thresholds
     spendingByCategory.forEach((amounts, categoryId) => {
       if (amounts.length < 2) return
 
-      const avg = amounts.reduce((a, b) => a + b) / amounts.length
-      const stdDev = Math.sqrt(amounts.reduce((sum, val) => sum + Math.pow(val - avg, 2)) / amounts.length)
-      const threshold = avg + stdDev * 2
+      // Use adaptive threshold based on learned baselines or current distribution
+      const threshold = getAdaptiveAnomalyThreshold(categoryId, amounts)
 
       amounts.forEach(amount => {
         if (amount > threshold) {
@@ -682,6 +681,332 @@ export default function FinAI() {
     }
   }
 
+  // ============== PHASE 3: ML-BASED LEARNING & SMART RECOMMENDATIONS ==============
+
+  interface CategoryPattern {
+    categoryId: string
+    categoryName: string
+    categoryIcon: string
+    avgMonthly: number
+    variance: number
+    trend: 'increasing' | 'decreasing' | 'stable'
+    trendPercent: number
+    type: 'essential' | 'discretionary'
+    monthlyData: Array<{ month: string; amount: number }>
+  }
+
+  interface CategoryBaseline {
+    categoryId: string
+    mean: number
+    stdDev: number
+    median: number
+    lastUpdated: string
+    dataPoints: number
+  }
+
+  interface BudgetRecommendation {
+    categoryId: string
+    categoryName: string
+    categoryIcon: string
+    currentBudget: number | null
+    actualAvgMonthly: number
+    recommendations: {
+      sustainable: number // avg + 20%
+      comfortable: number // avg + 10%
+      aggressive: number // avg
+    }
+    savingsPotential: number // annual savings if reduced to aggressive
+    status: 'well-aligned' | 'over-budgeted' | 'under-budgeted'
+  }
+
+  const analyzeCategoryPatterns = (): CategoryPattern[] => {
+    const oneYearAgo = new Date()
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+
+    const patterns: CategoryPattern[] = []
+
+    categories.filter(c => c.type === 'expense').forEach(category => {
+      const monthlyData: Array<{ month: string; amount: number }> = []
+      const amounts: number[] = []
+
+      // Get spending for each of the last 12 months
+      for (let i = 11; i >= 0; i--) {
+        const targetDate = new Date()
+        targetDate.setMonth(targetDate.getMonth() - i)
+
+        const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1)
+        const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0, 23, 59, 59)
+
+        const monthTransactions = transactions.filter(
+          t =>
+            t.category_id === category.id &&
+            new Date(t.transaction_date) >= monthStart &&
+            new Date(t.transaction_date) <= monthEnd
+        )
+
+        const amount = monthTransactions.reduce((sum, t) => sum + t.amount, 0)
+        const monthLabel = `${targetDate.toLocaleDateString('en-US', { month: 'short' })}`
+
+        monthlyData.push({ month: monthLabel, amount })
+        if (amount > 0) amounts.push(amount)
+      }
+
+      if (amounts.length === 0) return
+
+      // Calculate statistics
+      const avgMonthly = amounts.reduce((a, b) => a + b, 0) / amounts.length
+      const variance = amounts.reduce((sum, val) => sum + Math.pow(val - avgMonthly, 2), 0) / amounts.length
+      const stdDev = Math.sqrt(variance)
+      const coefficientOfVariation = avgMonthly > 0 ? (stdDev / avgMonthly) * 100 : 0
+
+      // Determine type: essential (low variance) vs discretionary (high variance)
+      const type = coefficientOfVariation < 30 ? 'essential' : 'discretionary'
+
+      // Calculate trend (first 6 months vs last 6 months)
+      const firstHalf = amounts.slice(0, Math.ceil(amounts.length / 2))
+      const secondHalf = amounts.slice(Math.ceil(amounts.length / 2))
+      const avgFirstHalf = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length
+      const avgSecondHalf = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length
+      const trendPercent = avgFirstHalf > 0 ? ((avgSecondHalf - avgFirstHalf) / avgFirstHalf) * 100 : 0
+      const trend = trendPercent > 5 ? 'increasing' : trendPercent < -5 ? 'decreasing' : 'stable'
+
+      patterns.push({
+        categoryId: category.id,
+        categoryName: category.name,
+        categoryIcon: category.icon,
+        avgMonthly,
+        variance,
+        trend,
+        trendPercent,
+        type,
+        monthlyData,
+      })
+    })
+
+    return patterns.sort((a, b) => b.avgMonthly - a.avgMonthly)
+  }
+
+  const generateBudgetRecommendations = (patterns: CategoryPattern[], budgetPerformance: CategoryBudgetPerformance[]): BudgetRecommendation[] => {
+    const budgetMap = new Map<string, CategoryBudgetPerformance>(
+      budgetPerformance.map(b => [b.categoryId, b])
+    )
+
+    return patterns.map(pattern => {
+      const budget = budgetMap.get(pattern.categoryId)
+      const currentBudget = budget?.budgetAmount || null
+
+      const recommendations = {
+        sustainable: Math.round(pattern.avgMonthly * 1.2 * 100) / 100, // avg + 20%
+        comfortable: Math.round(pattern.avgMonthly * 1.1 * 100) / 100,  // avg + 10%
+        aggressive: Math.round(pattern.avgMonthly * 100) / 100,          // avg
+      }
+
+      // Determine status based on actual budget
+      let status: 'well-aligned' | 'over-budgeted' | 'under-budgeted'
+      if (!currentBudget) {
+        status = 'under-budgeted' // No budget set
+      } else if (currentBudget >= recommendations.comfortable && currentBudget <= recommendations.sustainable) {
+        status = 'well-aligned'
+      } else if (currentBudget > recommendations.sustainable) {
+        status = 'over-budgeted'
+      } else {
+        status = 'under-budgeted'
+      }
+
+      const savingsPotential = (pattern.avgMonthly - recommendations.aggressive) * 12
+
+      return {
+        categoryId: pattern.categoryId,
+        categoryName: pattern.categoryName,
+        categoryIcon: pattern.categoryIcon,
+        currentBudget,
+        actualAvgMonthly: pattern.avgMonthly,
+        recommendations,
+        savingsPotential,
+        status,
+      }
+    })
+  }
+
+  const detectBehavioralPatterns = (): string => {
+    if (transactions.length < 20) {
+      return 'Need more transaction history to detect behavior patterns (at least 20 transactions)'
+    }
+
+    const dayOfWeekSpending = new Map<number, number>()
+    const hourCounts = new Map<number, number>()
+    const transactionSizesByCategory = new Map<string, number[]>()
+    const dateSpending = new Map<string, number>() // For paycheck cycle detection
+
+    // Get all expense transactions
+    const expenseTransactions = getTransactionsInRange('1900-01-01', '2100-01-01', 'expense')
+
+    // Analyze each transaction
+    expenseTransactions.forEach(txn => {
+      const date = new Date(txn.transaction_date)
+      const dayOfWeek = date.getDay()
+      const hour = date.getHours()
+      const dateKey = date.toISOString().split('T')[0]
+
+      // Day of week
+      dayOfWeekSpending.set(dayOfWeek, (dayOfWeekSpending.get(dayOfWeek) || 0) + txn.amount)
+
+      // Time of day
+      hourCounts.set(hour, (hourCounts.get(hour) || 0) + 1)
+
+      // Transaction size by category
+      const catSizes = transactionSizesByCategory.get(txn.category_id) || []
+      catSizes.push(txn.amount)
+      transactionSizesByCategory.set(txn.category_id, catSizes)
+
+      // Date spending (for paycheck cycle)
+      dateSpending.set(dateKey, (dateSpending.get(dateKey) || 0) + txn.amount)
+    })
+
+    // Analyze patterns
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    const maxDay = Array.from(dayOfWeekSpending.entries()).reduce((a, b) => a[1] > b[1] ? a : b)
+    const totalExpenses = sumAmount(getTransactionsInRange('1900-01-01', '2100-01-01', 'expense'))
+    const topDayPercent = maxDay && totalExpenses > 0 ? (maxDay[1] / totalExpenses * 100).toFixed(0) : '0'
+
+    const maxHour = Array.from(hourCounts.entries()).reduce((a, b) => a[1] > b[1] ? a : b)
+    const activeHour = maxHour ? `${maxHour[0].toString().padStart(2, '0')}:00` : 'Unknown'
+
+    const patterns: string[] = [
+      `⏰ Peak spending day: ${dayNames[maxDay[0]]} (${topDayPercent}% of weekly spending)`,
+      `🕐 Most active time: Around ${activeHour} (${maxHour[1]} transactions)`,
+    ]
+
+    // Detect paycheck cycle patterns
+    const dates = Array.from(dateSpending.keys()).sort()
+    if (dates.length > 10) {
+      const firstDaySpends = dateSpending.get(dates[0]) || 0
+      const fifteenthDaySpends = dates.length > 14 ? (dateSpending.get(dates[14]) || 0) : 0
+
+      if (firstDaySpends > fifteenthDaySpends * 1.5) {
+        patterns.push(`💰 Paycheck pattern detected: You spend more around the 1st-5th (payday spike)`)
+      }
+    }
+
+    // Analyze category-specific transaction patterns
+    const categoryPatterns: string[] = []
+    transactionSizesByCategory.forEach((sizes, catId) => {
+      const cat = categories.find(c => c.id === catId)
+      if (!cat || sizes.length < 3) return
+
+      const avgSize = sizes.reduce((a, b) => a + b, 0) / sizes.length
+      const minSize = Math.min(...sizes)
+      const maxSize = Math.max(...sizes)
+
+      if (maxSize / avgSize > 3) {
+        // High variance in transaction size
+        if (minSize < avgSize / 2) {
+          categoryPatterns.push(`${cat.icon} ${cat.name}: Mix of small (${formatCurrencyAmount(minSize)}) and large (${formatCurrencyAmount(maxSize)}) transactions`)
+        }
+      }
+    })
+
+    if (categoryPatterns.length > 0) {
+      patterns.push(`\n💳 Transaction Patterns by Category:`)
+      patterns.push(...categoryPatterns.slice(0, 3))
+    }
+
+    return patterns.join('\n')
+  }
+
+  const storeBaseline = (categoryId: string, baseline: CategoryBaseline): void => {
+    try {
+      const baselines = JSON.parse(localStorage.getItem('finai_baselines') || '{}')
+      baselines[categoryId] = baseline
+      localStorage.setItem('finai_baselines', JSON.stringify(baselines))
+    } catch (error) {
+      console.error('Error storing baseline:', error)
+    }
+  }
+
+  const loadBaseline = (categoryId: string): CategoryBaseline | null => {
+    try {
+      const baselines = JSON.parse(localStorage.getItem('finai_baselines') || '{}')
+      return baselines[categoryId] || null
+    } catch (error) {
+      console.error('Error loading baseline:', error)
+      return null
+    }
+  }
+
+  const updateAnomalyBaselines = (): void => {
+    const patterns = analyzeCategoryPatterns()
+    const lastUpdateKey = 'finai_baseline_last_update'
+    const lastUpdate = localStorage.getItem(lastUpdateKey)
+    const today = new Date().toISOString().split('T')[0]
+
+    // Only update once per month
+    if (lastUpdate === today) return
+
+    patterns.forEach(pattern => {
+      const baseline: CategoryBaseline = {
+        categoryId: pattern.categoryId,
+        mean: pattern.avgMonthly,
+        stdDev: Math.sqrt(pattern.variance),
+        median: 0, // Simplified for now
+        lastUpdated: today,
+        dataPoints: pattern.monthlyData.length,
+      }
+      storeBaseline(pattern.categoryId, baseline)
+    })
+
+    localStorage.setItem(lastUpdateKey, today)
+  }
+
+  const getAdaptiveAnomalyThreshold = (categoryId: string, values: number[]): number => {
+    if (values.length < 3) return Math.max(...values) * 1.5 // Fallback
+
+    // Load learned baseline for this category
+    const baseline = loadBaseline(categoryId)
+
+    if (baseline && baseline.stdDev > 0) {
+      // Use learned baseline: mean + 3 * std dev
+      return baseline.mean + (3 * baseline.stdDev)
+    }
+
+    // Fallback: calculate from current values
+    const mean = values.reduce((a, b) => a + b, 0) / values.length
+    const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length
+    const stdDev = Math.sqrt(variance)
+    return mean + (3 * stdDev)
+  }
+
+  const formatCategoryPatterns = (patterns: CategoryPattern[]): string => {
+    if (patterns.length === 0) return 'Not enough data for spending patterns'
+
+    return patterns
+      .slice(0, 5)
+      .map(p => {
+        const type = p.type === 'essential' ? '📌' : '🎯'
+        const trend = p.trend === 'increasing' ? '📈' : p.trend === 'decreasing' ? '📉' : '➡️'
+        return `${type} ${p.categoryIcon} ${p.categoryName}: Avg ${formatCurrency(p.avgMonthly, profile!.currency)}/month ${trend} ${p.trendPercent > 0 ? '+' : ''}${p.trendPercent.toFixed(1)}%`
+      })
+      .join('\n')
+  }
+
+  const formatBudgetRecommendations = (recommendations: BudgetRecommendation[]): string => {
+    if (recommendations.length === 0) return 'No budget recommendations yet'
+
+    const topOpportunities = recommendations
+      .filter(r => r.savingsPotential > 0)
+      .sort((a, b) => b.savingsPotential - a.savingsPotential)
+      .slice(0, 3)
+
+    if (topOpportunities.length === 0) return 'Your budgets are well-aligned with spending'
+
+    return topOpportunities
+      .map(r => {
+        const impact = formatCurrency(r.savingsPotential, profile!.currency)
+        return `${r.categoryIcon} ${r.categoryName}: Could save ${impact}/year by setting budget to ${formatCurrency(r.recommendations.aggressive, profile!.currency)}`
+      })
+      .join('\n')
+  }
+
 
   // ============== GROQ API INTEGRATION ==============
   // All questions route through Groq AI for intelligent responses
@@ -794,6 +1119,18 @@ export default function FinAI() {
       const categoryTrends = calculateCategoryTrends()
       const trendAnalysisText = formatTrendAnalysis(categoryTrends)
 
+      // Phase 3: Analyze category spending patterns and generate recommendations
+      const categoryPatterns = analyzeCategoryPatterns()
+      const patternsText = formatCategoryPatterns(categoryPatterns)
+
+      const budgetRecommendations = generateBudgetRecommendations(categoryPatterns, categoryBudgetPerformance)
+      const recommendationsText = formatBudgetRecommendations(budgetRecommendations)
+
+      const behavioralPatternsText = detectBehavioralPatterns()
+
+      // Update anomaly baselines monthly
+      updateAnomalyBaselines()
+
       // Phase 4: Detect anomalies
       const anomalies = detectAnomalies()
       const anomalyText = anomalies.length > 0
@@ -841,6 +1178,25 @@ ${trendAnalysisText}
 - 📉 indicates decreasing spending trend
 - ➡️ indicates stable spending
 - Confidence level shows forecast reliability (higher = more reliable)
+
+Category Spending Patterns (Last 12 Months):
+${patternsText}
+- 📌 Essential categories have low spending variance
+- 🎯 Discretionary categories have higher variance
+- Trend shows if category is increasing (📈), decreasing (📉), or stable (➡️)
+
+Smart Budget Recommendations:
+${recommendationsText}
+- Recommendations are based on actual spending patterns
+- Aggressive: Tight control based on average
+- Comfortable: Average + 10% flexibility
+- Sustainable: Average + 20% buffer
+
+Behavioral Spending Patterns:
+${behavioralPatternsText}
+- When user tends to spend most
+- How transactions vary by day, time, and category
+- Potential paycheck cycles and spending habits
 
 Anomaly Alerts:
 ${anomalyText}
@@ -910,9 +1266,34 @@ TREND ANALYSIS:
 - Consider confidence levels when making predictions (high confidence = more reliable)
 - Alert user to concerning trends early
 
+SPENDING PATTERNS & INSIGHTS (Phase 3 - NEW):
+- Review Category Spending Patterns section showing 12-month analysis
+- Identify if categories are essential (consistent) or discretionary (variable)
+- Use trend data to understand where user's money goes
+- Recognize high-impact categories (highest spending)
+- Consider type of category when making recommendations
+
+SMART BUDGET RECOMMENDATIONS (Phase 3 - NEW):
+- Review Smart Budget Recommendations section
+- Explain why certain budgets are recommended
+- Focus on highest-impact savings opportunities first
+- When user asks about budgets, reference the recommendations
+- Use annual savings potential to show impact of changes
+- Suggest realistic adjustments that won't be too restrictive
+
+BEHAVIORAL PATTERNS (Phase 3 - NEW):
+- Use Behavioral Spending Patterns to understand when and how user spends
+- Reference day-of-week patterns when relevant
+- Mention time-of-day preferences when discussing spending habits
+- Alert user to paycheck cycles if detected
+- Use these insights to make personalized recommendations
+- Help user understand their unique spending style
+
 ANOMALY DETECTION:
 - Review Anomaly Alerts section for unusual spending patterns
-- Warn about large transactions (unusually high for that category)
+- Use adaptive baselines that learn from user's own spending patterns
+- Warn about transactions that are unusual for that specific category
+- Consider user's typical variance (high-variance categories more lenient)
 - Alert user if new patterns emerge
 
 SCENARIO ANALYSIS:
