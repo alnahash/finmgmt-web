@@ -60,7 +60,10 @@ export default function FinAI() {
   const [categories, setCategories] = useState<Category[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [dataLoaded, setDataLoaded] = useState(false)
+  const [usingGroq, setUsingGroq] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY
 
   useEffect(() => {
     if (user) {
@@ -363,9 +366,56 @@ export default function FinAI() {
     return 'current'
   }
 
+  // ============== GROQ API INTEGRATION ==============
+
+  const callGroqAPI = async (prompt: string): Promise<string | null> => {
+    if (!GROQ_API_KEY) {
+      console.warn('Groq API key not configured')
+      return null
+    }
+
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'mixtral-8x7b-32768',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a helpful financial assistant analyzing spending data. Be concise and friendly.
+              Use these currency symbols correctly: BHD (Bahraini Dinar), USD ($), EUR (€), etc.
+              Focus on actionable insights about the user's finances.`,
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          max_tokens: 500,
+          temperature: 0.7,
+        }),
+      })
+
+      if (!response.ok) {
+        console.error('Groq API error:', response.status)
+        return null
+      }
+
+      const data = await response.json()
+      return data.choices?.[0]?.message?.content || null
+    } catch (error) {
+      console.error('Groq API call failed:', error)
+      return null
+    }
+  }
+
   // ============== RESPONSE GENERATION ==============
 
-  const generateResponse = (userMessage: string): string => {
+  const generateResponse = async (userMessage: string): Promise<string> => {
     if (!profile || !dataLoaded) {
       return 'I am still loading your data. Please give me a moment...'
     }
@@ -457,8 +507,23 @@ export default function FinAI() {
       case 'list_categories':
         return generateCategoryListResponse()
 
-      default:
+      default: {
+        // For unknown intents, try Groq if available
+        if (GROQ_API_KEY) {
+          const groqPrompt = `The user asked about their finances: "${userMessage}"
+
+Based on their transaction data, please provide a helpful response about their spending, savings, or financial patterns.
+Keep the response concise and friendly.`
+          const groqResponse = await callGroqAPI(groqPrompt)
+          if (groqResponse) {
+            setUsingGroq(true)
+            return groqResponse
+          }
+        }
+
+        // Fallback if Groq fails or not configured
         return `I'm not sure I understood that. 🤔 Try asking me about:\n\n• Your spending this month\n• Top spending categories\n• How much you saved\n• Budget status\n• A specific category like "Food & Dining"\n\nOr type "help" to see all I can do!`
+      }
     }
   }
 
@@ -785,10 +850,11 @@ export default function FinAI() {
     setMessages((prev) => [...prev, userMsg])
     setInput('')
     setLoading(true)
+    setUsingGroq(false)
 
-    // Simulate thinking delay for better UX
-    setTimeout(() => {
-      const response = generateResponse(userMsg.content)
+    // Generate response (might call Groq API)
+    setTimeout(async () => {
+      const response = await generateResponse(userMsg.content)
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -797,7 +863,7 @@ export default function FinAI() {
       }
       setMessages((prev) => [...prev, assistantMsg])
       setLoading(false)
-    }, 600)
+    }, 300)
   }
 
   const handleSuggestion = (question: string) => {
@@ -928,14 +994,21 @@ export default function FinAI() {
                       <Sparkles className="w-4 h-4 text-white" />
                     )}
                   </div>
-                  <div
-                    className={`rounded-lg px-4 py-3 text-sm ${
-                      msg.role === 'user'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-slate-800 text-slate-200 border border-slate-700'
-                    }`}
-                  >
-                    {renderContent(msg.content)}
+                  <div className="flex flex-col">
+                    <div
+                      className={`rounded-lg px-4 py-3 text-sm ${
+                        msg.role === 'user'
+                          ? 'bg-primary-600 text-white'
+                          : 'bg-slate-800 text-slate-200 border border-slate-700'
+                      }`}
+                    >
+                      {renderContent(msg.content)}
+                    </div>
+                    {msg.role === 'assistant' && usingGroq && msg.id === messages[messages.length - 1]?.id && (
+                      <div className="text-xs text-slate-500 mt-1 ml-1">
+                        ⚡ Powered by Groq AI
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
