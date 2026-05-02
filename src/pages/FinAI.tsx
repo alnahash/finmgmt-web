@@ -77,6 +77,13 @@ export default function FinAI() {
     scrollToBottom()
   }, [messages])
 
+  useEffect(() => {
+    // Focus input when not loading and data is loaded
+    if (!loading && dataLoaded) {
+      inputRef.current?.focus()
+    }
+  }, [loading, dataLoaded])
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -343,11 +350,6 @@ Provide a helpful, concise, and friendly response. Use the currency symbol (${pr
     }
     setMessages((prev) => [...prev, assistantMsg])
     setLoading(false)
-
-    // Auto-focus input for better UX
-    setTimeout(() => {
-      inputRef.current?.focus()
-    }, 100)
   }
 
   const handleSuggestion = (question: string) => {
