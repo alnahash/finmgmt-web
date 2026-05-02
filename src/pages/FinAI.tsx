@@ -84,6 +84,38 @@ export default function FinAI() {
     }
   }, [loading, dataLoaded])
 
+  useEffect(() => {
+    // Add global click listener to focus input unless clicking interactive elements
+    const handlePageClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+
+      // List of interactive element tags and classes to exclude
+      const isInteractive =
+        target.tagName === 'BUTTON' ||
+        target.tagName === 'A' ||
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('input') ||
+        target.closest('select')
+
+      // Focus input only if not clicking an interactive element and input is enabled
+      if (!isInteractive && !loading && dataLoaded) {
+        inputRef.current?.focus()
+      }
+    }
+
+    // Add listener to document
+    document.addEventListener('click', handlePageClick)
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('click', handlePageClick)
+    }
+  }, [loading, dataLoaded])
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
