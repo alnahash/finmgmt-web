@@ -2,7 +2,7 @@ import { useContext } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AuthContext } from '../App'
 import { supabase } from '../lib/supabase'
-import { LayoutDashboard, TrendingDown, Layers, Target, BarChart3, TrendingUp, Settings, LogOut, Shield } from 'lucide-react'
+import { LayoutDashboard, TrendingDown, Layers, Target, BarChart3, TrendingUp, Settings, LogOut, Shield, Sparkles } from 'lucide-react'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -25,6 +25,7 @@ export default function Layout({ children }: LayoutProps) {
     { path: '/budgets', label: 'Budgets', icon: Target },
     { path: '/analytics', label: 'Analytics', icon: BarChart3 },
     { path: '/spending-vs-saving', label: 'Spending vs Saving', icon: TrendingUp },
+    { path: '/finai', label: 'FinAI', icon: Sparkles },
   ]
 
   return (

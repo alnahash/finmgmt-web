@@ -144,15 +144,59 @@ if (isIncome) {
 
 ## 🔄 Important Implementation Notes
 
+### Admin System (Dual-Layer Architecture)
+
+**Two-tier admin management**:
+1. **Environment Variable (VITE_ADMIN_EMAILS)**: Built-in admin emails checked first (e.g., `alnahash@gmail.com`)
+2. **Database Flag (profiles.is_admin)**: User-managed admin status in the database
+
+**Code location**: `App.tsx`, `checkAdmin()` function
+```typescript
+const checkAdmin = async (email?: string, userId?: string) => {
+  // 1. Check environment variable (backward compatibility)
+  const envAdmins = import.meta.env.VITE_ADMIN_EMAILS?.split(',') || []
+  const isEnvAdmin = email ? envAdmins.includes(email.toLowerCase()) : false
+  if (isEnvAdmin) {
+    setIsAdmin(true)
+    return
+  }
+  
+  // 2. Check database flag (user-managed admins)
+  if (userId) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', userId)
+      .single()
+    setIsAdmin(data?.is_admin || false)
+  }
+}
+```
+
+**AdminPanel Features**:
+- View all users with login stats, last login date
+- **Toggle admin status**: Only `alnahash@gmail.com` can call `toggleAdminStatus()`
+- **Delete users**: Removes user from both `profiles` table (via RLS) and `auth.users` (via admin API)
+- Custom success/error modals instead of browser alerts
+
+**User Deletion Process**:
+1. Delete from `profiles` table (RLS policy enforces admin check)
+2. Supabase admin API removes from `auth.users`
+3. User won't reappear because RPC function `get_admin_user_stats()` uses INNER JOIN (not LEFT JOIN) with profiles
+
+**Important**: Deleted users in `auth.users` are filtered out by INNER JOIN, preventing orphaned records.
+
 ### Currency Formatting
 - Use `getCurrencySymbol(currency)` to get symbol (e.g., "₹", "$", "BHD")
 - Use `formatCurrency(amount, currency)` for full formatted strings
 - All currency data stored in profile as currency code (e.g., "USD", "BHD")
 
-### Admin Access
-- Checked via email match against `VITE_ADMIN_EMAILS` env var (comma-separated)
-- Admin panel accessible only if `AuthContext.isAdmin` is true
-- Falls back to `'alnahash@gmail.com'` if env var not set
+### Email Verification
+**Current status**: Disabled in signup flow
+- Users can access app immediately after signup
+- Supabase still sends verification emails but they're not enforced
+- Removed: EmailVerification page, email_confirmed check in routing, verification redirects
+- Reason: Better UX for users who can't access email immediately
 
 ### Charts (Recharts)
 - Wrap in `<ResponsiveContainer width="100%" height={350}>`
@@ -160,7 +204,43 @@ if (isIncome) {
 - Use `#94a3b8` for axis text, `#334155` for grid lines, `#1e293b` for tooltip background
 - Category Spending Trends uses `ReferenceDot` with color-coded dots (green for decrease, red for increase, gray for neutral)
 
-## 🚀 Recent Features
+## ✅ Implemented Features
+
+### Authentication & Admin
+- ✅ Email/password signup and login
+- ✅ Supabase session management
+- ✅ Admin system (email-based + database flag)
+- ✅ AdminPanel with user management (view stats, toggle admin, delete users)
+- ✅ RLS policies protecting all user data
+- ❌ Email verification (disabled - users access app immediately after signup)
+
+### Dashboard & Analytics
+- ✅ Dashboard with 6 metric cards (total spent, transactions count, budget remaining, days tracked, avg per transaction, top category)
+- ✅ Period selector supporting custom month_start_day
+- ✅ Analytics page with charts (pie by category, cumulative spending line)
+- ✅ Category breakdown tables (main + sub categories)
+- ✅ Budget status section
+- ✅ Category Spending Trends (select category, view 3/6/12 month trend with color-coded increase/decrease)
+
+### Transaction & Category Management
+- ✅ Add/edit/delete transactions
+- ✅ Transaction filtering by category and date
+- ✅ Category CRUD with emoji icons and colors
+- ✅ Category hierarchy (parent_id for main/sub categories)
+- ✅ Category type (expense vs. income)
+
+### User Settings & Preferences
+- ✅ Profile editing (full name, currency, monthly budget, month_start_day)
+- ✅ Theme toggle (light/dark mode, persisted to profile)
+- ✅ Onboarding flow with default categories setup
+
+### Financial Features
+- ✅ Multiple currency support (USD, EUR, GBP, BHD, AED, SAR)
+- ✅ Budget tracking (per-category monthly budgets)
+- ✅ Spending vs. Saving analysis
+- ✅ Login event tracking for admin stats
+
+## 🚀 Recent Features (v1.5)
 
 ### Category Spending Trends (Analytics Page)
 Users can select a category and view spending trends over 3/6/12 months with:
@@ -172,12 +252,77 @@ Users can select a category and view spending trends over 3/6/12 months with:
 ### Period-Based Dashboard
 Dashboard now supports custom month start day with period selector matching Analytics patterns.
 
+### Admin User Management
+- Toggle user admin status (owner-only: alnahash@gmail.com)
+- Delete users with proper RLS and auth cleanup
+- View login stats and activity per user
+- Custom success/error modals instead of browser alerts
+
+## 📋 Planned Features (From Design Docs)
+
+### Phase 2 - Budgets Redesign
+- List view showing all categories grouped by main category
+- Frequency filter tabs (All, Monthly, Yearly, Weekly, Daily, Quarterly, One Off)
+- "Copy budgets from last month" bulk action
+- Inline edit modal for budget amounts and frequency
+
+### Phase 3 - Analytics Enhancements  
+- Budget vs. actual spending analysis
+- Spending forecast based on historical data
+- Anomaly detection (unusual spending alerts)
+- Smart budget recommendations
+
+### Phase 4 - Predictive Features
+- AI-powered spending forecasts
+- Category spending pattern analysis
+- Automated budget suggestions
+
 ## 🔐 Key Security Notes
 
-- All database queries use RLS - never pass user context manually
+### Row-Level Security (RLS)
+All tables have RLS enabled with policies:
+- Users see/edit only their own data (policy: `user_id = auth.uid()`)
+- Admin-only operations require checking `is_admin = true` or owned data
+- Delete operations require admin status
+
+**Example policy for admin deletion**:
+```sql
+CREATE POLICY "Admin can delete any profile"
+ON profiles FOR DELETE
+USING (
+  auth.uid() IN (
+    SELECT id FROM auth.users 
+    WHERE email = 'alnahash@gmail.com'
+  )
+)
+```
+
+### RPC Functions & Deleted User Handling
+**get_admin_user_stats()** returns all users for AdminPanel.
+
+**Critical implementation**: Uses INNER JOIN (not LEFT JOIN) with profiles
+- Reason: Deleted users still exist in `auth.users` but have no `profiles` record
+- LEFT JOIN would show deleted users; INNER JOIN filters them out
+- Ensures clean data after user deletion
+
+```sql
+SELECT 
+  au.id, au.email,
+  COUNT(le.logged_in_at) as login_count,
+  MAX(le.logged_in_at) as last_login,
+  pr.is_admin
+FROM auth.users au
+INNER JOIN public.profiles pr ON au.id = pr.id  -- Filters deleted users
+LEFT JOIN public.login_events le ON au.id = le.user_id
+GROUP BY au.id, au.email, pr.is_admin
+ORDER BY au.created_at DESC
+```
+
+### Other Security Notes
 - Admin emails checked on client side via env var
 - Supabase Auth handles password hashing/storage
 - No sensitive data in localStorage except auth token (handled by Supabase)
+- Custom modals used instead of browser alerts (no exposure of raw error messages)
 
 ## 📝 Development Workflow
 
@@ -190,28 +335,158 @@ Dashboard now supports custom month start day with period selector matching Anal
 
 ## 🐛 Debugging
 
+### Common Issues & Solutions
+
+**User deletion shows success but user still appears in AdminPanel**:
+- Check if RPC function uses INNER JOIN or LEFT JOIN with profiles
+- LEFT JOIN keeps deleted users; INNER JOIN filters them (correct)
+- Verify both `profiles` and `auth.users` are deleted
+- Check `login_events` doesn't have stale entries
+
+**User can't access app after signup**:
+- Verify email verification is NOT blocking (check App.tsx routing)
+- Check `profiles` table has corresponding row for user.id
+- Ensure `month_start_day` is set in onboarding (defaults to 1 if missing)
+- Check RLS policy on `profiles` allows user to read own data
+
+**Admin features not working**:
+- Verify user email matches `VITE_ADMIN_EMAILS` env var OR has `is_admin = true` in database
+- Refresh page after `is_admin` flag changed (AuthContext doesn't auto-update)
+- Check browser console for RLS 403 errors
+- Check AdminPanel is only shown when `AuthContext.isAdmin` is true
+
+**Period selector shows no periods**:
+- Check if transaction dates exist in database
+- Verify `getUniquePeriodKeysByType()` is being called correctly
+- Ensure `month_start_day` from profile is passed to utility functions
+- Check console for date parsing errors
+
+### Tools & Resources
+
 - **Supabase Studio**: View/edit database directly at supabase.com
 - **Vercel Logs**: Check deployment logs on vercel.com dashboard
+- **Supabase SQL Editor**: Test queries, RLS policies, RPC functions
 - **React DevTools**: Inspect component state and context values
-- **Network Tab**: Check Supabase API calls and response data
-- **Console**: Watch for TypeScript/Supabase errors
+- **Network Tab**: Check Supabase API calls and response status codes
+- **Browser Console**: Watch for TypeScript/Supabase errors and warnings
+
+## 🎨 UI Patterns
+
+### Custom Modals (NOT Browser Alerts)
+Instead of `alert()` or `confirm()`, use custom modal components:
+
+```typescript
+const [successMessage, setSuccessMessage] = useState('')
+const [errorMessage, setErrorMessage] = useState('')
+
+// Show success (auto-dismisses after 3 seconds)
+setSuccessMessage('User marked as admin')
+setTimeout(() => setSuccessMessage(''), 3000)
+
+// Show error (user can close or auto-dismiss)
+setErrorMessage('Failed to delete user')
+setTimeout(() => setErrorMessage(''), 4000)
+```
+
+**Render modals in component**:
+- Success modal: Green background, CheckCircle icon, success message
+- Error modal: Red background, AlertCircle icon, error message
+- Both are overlay modals that don't block user interaction
+
+**Benefits**:
+- Better UX - no jarring browser alerts
+- Can show detailed error messages
+- Consistent with dark theme design
+- Auto-dismiss provides feedback without interaction
+
+### Form Validation UI
+Use real-time validation indicators:
+- **✓ Green checkmark**: Valid input (meets requirements)
+- **✗ Red X**: Invalid input (doesn't meet requirements)
+- Show validation feedback next to field as user types
+
+### Icon Usage
+- Use Lucide React icons consistently
+- Common icons: Check, X, AlertCircle, CheckCircle, Eye, EyeOff, Trash2, Edit2
+- Icon colors: Primary orange `#f97316`, muted gray `#94a3b8`, red `#ef4444`, green `#10b981`
 
 ## 🎯 Common Tasks
 
 ### Adding a New Stat Card to Dashboard
 1. Add state variable: `const [stat, setStat] = useState(0)`
-2. Fetch data in `useEffect` after transactions load
+2. Fetch data in `useEffect` after period is selected
 3. Render card with icon and value
-4. Update style to match existing cards (`bg-gradient-to-br from-slate-800 to-slate-900`)
+4. Update style to match existing cards (`bg-slate-800 border border-slate-700 rounded-lg`)
+5. Make responsive with `md:col-span-2` or similar for larger cards
 
 ### Adding a New Analytics Chart
 1. Fetch period data using `getPeriodDateRangeByType()`
 2. Transform data into Recharts format: `[{ name: string, value: number }, ...]`
 3. Wrap in `ResponsiveContainer` and use appropriate Recharts component (LineChart, BarChart, etc.)
-4. Match color scheme: lines/bars use `#f97316`, grid `#334155`, tooltip `#1e293b`
+4. Match color scheme: lines/bars use `#f97316`, grid `#334155`, tooltip `#1e293b`, axis text `#94a3b8`
+5. Add proper tooltips showing currency format
+
+### Adding a New Page with Admin Check
+1. Create `src/pages/NewAdminPage.tsx`
+2. Add auth guard at top of component:
+   ```typescript
+   const { isAdmin } = useContext(AuthContext)
+   if (!isAdmin) return <Navigate to="/" />
+   ```
+3. Add route in `App.tsx` inside authenticated routes, conditionally:
+   ```typescript
+   {isAdmin && <Route path="/admin-feature" element={<NewAdminPage />} />}
+   ```
+4. Implement RLS policy on database tables if needed
+
+### Handling User Deletion
+```typescript
+const deleteUser = async (userId: string) => {
+  try {
+    // 1. Delete from profiles (RLS policy enforces admin check)
+    await supabase.from('profiles').delete().eq('id', userId)
+    
+    // 2. Delete from auth.users via admin API
+    await fetch('/api/admin/delete-user', {
+      method: 'POST',
+      body: JSON.stringify({ userId })
+    })
+    
+    // 3. Show success modal and refresh list
+    setSuccessMessage('User deleted successfully')
+    await fetchAdminData()
+  } catch (error) {
+    setErrorMessage(error.message)
+  }
+}
+```
 
 ### Modifying Period Utility Functions
-**Note**: Period calculations affect many pages (Dashboard, Analytics, Budgets). Always test across all affected pages when changing period logic.
+**Note**: Period calculations affect many pages (Dashboard, Analytics, Budgets). Always test across all affected pages when changing period logic:
+1. Dashboard (period selector, metric cards)
+2. Analytics (charts, trend analysis)
+3. Budgets (if period-based budgets used)
+4. Any page that fetches transactions
+
+## 💻 TypeScript & Strict Mode
+
+**Strict mode is enabled** in `tsconfig.json`:
+- No `any` types allowed
+- Null checks required: `user?.id` not `user.id`
+- All component props must have explicit types
+- `useContext()` must be typed: `const { user } = useContext<AuthContextType>(AuthContext)`
+
+**Common patterns**:
+```typescript
+// ✓ Good
+const getValue = (obj?: MyType) => obj?.value || 0
+const handleClick = (e: React.MouseEvent) => { ... }
+const [data, setData] = useState<User[]>([])
+
+// ✗ Bad
+const getValue = (obj) => obj.value  // No type
+const data: any = {}  // Avoid any
+```
 
 ## 📦 Environment Variables
 
@@ -221,9 +496,60 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 VITE_ADMIN_EMAILS=admin1@example.com,admin2@example.com
 ```
 
-## 🚢 Deployment
+**In development**: Create `.env.local` with above variables
+**In production**: Set in Vercel project settings → Environment Variables
 
-- **Auto-deploy**: Push to main branch → Vercel builds and deploys
-- **Manual deploy**: `vercel deploy --prod --yes`
-- **Build happens on**: TypeScript check → Vite build → Vercel uploads dist/
-- **Env vars**: Set in Vercel project dashboard (auto-loads into build)
+## ⚠️ Common Gotchas & Anti-Patterns
+
+**DO NOT**:
+1. Use browser `alert()` or `confirm()` - use custom modals instead
+2. Fetch `auth.users` data directly in queries - only `profiles` table is accessible via RLS
+3. Forget to update period filtering when adding new features that use transactions
+4. Use calendar month filtering (`DATE_TRUNC('month', date)`) - always use period date ranges
+5. Assume `user.id` exists without null check - use `user?.id`
+6. Change period utility function logic without testing all affected pages
+7. Hard-code admin emails in components - use `VITE_ADMIN_EMAILS` env var
+8. Leave unused imports/variables (breaks TypeScript lint)
+9. Use LEFT JOIN with `auth.users` in RPC functions (orphaned records problem)
+10. Forget to set RLS policies on new tables (data exposed to all users)
+
+**ALWAYS**:
+1. Use `getPeriodDateRange()` for transaction queries
+2. Pass `monthStartDay` to period utility functions
+3. Filter by `user_id` in all queries (RLS enforces this but be explicit)
+4. Test admin features as non-admin user (verify access denied)
+5. Test date-dependent features around month boundaries
+6. Check Vercel logs if deployment looks stuck
+7. Verify TypeScript compiles before pushing: `npm run build`
+8. Use custom modals for user feedback instead of console.log() or alerts
+9. Test deleted user doesn't appear in AdminPanel (check RPC function JOIN logic)
+10. Set currency properly during onboarding (affects all formatting)
+
+## 🚢 Deployment & Vercel
+
+### Auto-Deployment Flow
+1. Push to `main` branch on GitHub
+2. Vercel webhook triggered
+3. Vercel runs: TypeScript check → Vite build → Deploy to `dist/`
+4. Deployment takes 1-2 minutes typically
+5. Automatic redirect from production domain
+
+### Manual Deployment
+```bash
+npx vercel deploy --prod --yes
+```
+
+### Checking Deployment Status
+- Vercel Dashboard: https://vercel.com/dashboard
+- Recent deployments show build status, logs, and preview URLs
+- Failed builds show detailed error messages in build logs
+
+### Build Troubleshooting
+If `npm run build` fails locally:
+1. Check TypeScript errors: `npm run lint`
+2. Verify all imports resolve correctly
+3. Check for unused variables/imports (will fail build)
+4. Run `npm install` if dependencies changed
+5. Delete `node_modules` and `.next` (if exists), reinstall
+
+**Deployment lag note**: Code changes may take time to deploy. Always check Vercel logs to confirm deployment succeeded before investigating further.

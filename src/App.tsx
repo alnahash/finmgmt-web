@@ -15,6 +15,7 @@ import SpendingVsSaving from './pages/SpendingVsSaving'
 import Settings from './pages/Settings'
 import AdminPanel from './pages/AdminPanel'
 import Onboarding from './pages/Onboarding'
+import FinAI from './pages/FinAI'
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<{
@@ -162,6 +163,7 @@ function App() {
               <Route path="/budgets" element={<Budgets />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/spending-vs-saving" element={<SpendingVsSaving />} />
+              <Route path="/finai" element={<FinAI />} />
               <Route path="/settings" element={<Settings />} />
               {isAdmin && <Route path="/admin" element={<AdminPanel />} />}
               <Route path="*" element={<Navigate to="/" />} />
