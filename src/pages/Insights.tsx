@@ -37,10 +37,19 @@ interface Transaction {
 }
 
 interface UserProfile {
-  full_name: string
+  id: string
+  full_name: string | null
+  email: string | null
+  phone: string | null
+  date_of_birth: string | null
+  occupation: string | null
   currency: string
   monthly_budget: number
   month_start_day: number
+  theme: 'light' | 'dark'
+  is_admin: boolean
+  created_at: string | null
+  updated_at: string | null
 }
 
 interface MonthlyData {
@@ -93,7 +102,7 @@ export default function Insights() {
     try {
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('full_name, currency, monthly_budget, month_start_day')
+        .select('id, full_name, email, phone, date_of_birth, occupation, currency, monthly_budget, month_start_day, theme, is_admin, created_at, updated_at')
         .eq('id', user.id)
         .single()
 
@@ -273,7 +282,13 @@ export default function Insights() {
     const { profile, monthsAnalyzed, totalIncome, totalExpenses, savings, savingsRate } = brief
     const currency = profile.currency
 
-    let text = `User Financial Analysis (Last ${monthsAnalyzed} months):
+    let text = `User Profile:
+Name: ${profile.full_name || 'Friend'}
+Email: ${profile.email || 'Not provided'}
+Occupation: ${profile.occupation || 'Not specified'}
+Account Created: ${profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Unknown'}
+
+Financial Analysis (Last ${monthsAnalyzed} months):
 
 Currency: ${currency}
 Monthly Budget Set: ${profile.monthly_budget > 0 ? formatCurrency(profile.monthly_budget, currency) : 'Not set'}
@@ -320,34 +335,37 @@ Monthly Spending Trend:`
 
     const currency = profile?.currency || 'USD'
     const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'BHD' ? 'BD' : currency
+    const userName = profile?.full_name ? profile.full_name.split(' ')[0] : 'Friend'
 
-    const prompt = `You are an expert personal finance advisor. Analyze this user's financial data and provide structured, actionable advice.
+    const prompt = `You are an expert personal finance advisor. Analyze this user's financial data and provide structured, actionable advice tailored to their specific situation.
 
 ${analysisBrief}
 
-Provide your response in EXACTLY this format with these 5 sections (use ${symbol} for amounts):
+Provide your response in EXACTLY this format with these 5 sections (use ${symbol} for amounts). Personalize your advice for ${userName}:
 
 ## QUICK_WINS
-List 3-5 specific, actionable savings opportunities with EXACT amounts in ${symbol}. Format each as a bullet point starting with "•". Be concrete (e.g., "• Coffee Shop: ${symbol}75/mo — Brew at home 3 days/week → Save ${symbol}45/mo").
+List 3-5 specific, actionable savings opportunities with EXACT amounts in ${symbol}. Format each as a bullet point starting with "•". Address ${userName} by name and be concrete (e.g., "• Coffee Shop: ${symbol}75/mo — Brew at home 3 days/week → Save ${symbol}45/mo").
 
 ## CATEGORY_BUDGETS
-For each top expense category, suggest a target monthly budget with brief reasoning. Format as bullet points.
+For each top expense category, suggest a target monthly budget with brief reasoning. Format as bullet points. Reference ${userName}'s current spending patterns.
 
 ## WARNING_SIGNS
-List 2-4 spending patterns or trends to watch out for. Be honest but encouraging.
+List 2-4 spending patterns or trends to watch out for. Be honest but encouraging. Use ${userName}'s name to make it personal.
 
 ## BEHAVIORAL_INSIGHTS
-Provide 2-3 insights about spending habits and what they reveal. Suggest mental frameworks or tips.
+Provide 2-3 insights about spending habits and what they reveal about ${userName}'s financial behavior. Suggest mental frameworks or tips tailored to their occupation if provided.
 
 ## LONG_TERM_STRATEGY
-Outline a realistic 6-month savings goal with monthly milestones. Be specific with numbers.
+Outline a realistic 6-month savings goal with monthly milestones for ${userName}. Be specific with numbers and account for their monthly budget target.
 
 IMPORTANT:
 - Use the section headers exactly as shown (## SECTION_NAME)
 - Use ${symbol} consistently for all currency mentions
+- Address ${userName} directly by name in the advice
 - Be specific with numbers, not vague
 - Be encouraging but realistic
-- Focus on actionable advice, not generic platitudes`
+- Focus on actionable advice, not generic platitudes
+- Reference their actual spending data and patterns`
 
     try {
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {

@@ -240,19 +240,58 @@ const checkAdmin = async (email?: string, userId?: string) => {
 - ✅ Spending vs. Saving analysis
 - ✅ Login event tracking for admin stats
 
-## 🚀 Recent Features (v1.5)
+## 🚀 Recent Features (v1.6)
 
-### Category Spending Trends (Analytics Page)
+### Insights Tab - AI-Powered Financial Analysis
+New dedicated `/insights` page with:
+- **Deep Local Analysis Engine**: Crunches 6 months of spending data before calling AI
+  - Monthly trend analysis (last 6 months)
+  - Category growth detection (% change month-over-month)
+  - "Death by 1000 cuts" detection (categories with 5+ small transactions)
+  - Savings rate and budget health calculations
+  
+- **5 Structured AI Advice Sections** (via Groq API):
+  1. **Quick Wins** - Specific, actionable savings with exact amounts
+  2. **Category Recommendations** - Target budgets per category
+  3. **Warning Signs** - Spending patterns to watch
+  4. **Behavioral Insights** - Habits and mental frameworks
+  5. **6-Month Strategy** - Realistic savings goal with milestones
+
+- **UI Components**:
+  - Quick stats bar (Income, Expenses, Savings Rate, Months Analyzed)
+  - "Generate AI Report" button (on-demand, not auto-run to save API quota)
+  - "Regenerate" button for fresh analysis
+  - Organized insight cards with icons and color-coded sections
+  - Last-generated timestamp
+
+- **Code location**: `src/pages/Insights.tsx` (700+ lines)
+  - `buildAnalysisBrief()` - Constructs comprehensive financial summary
+  - `formatBriefForGroq()` - Formats analysis into Groq prompt
+  - `callGroqForAdvice()` - Calls Groq AI with structured prompt
+  - `parseInsights()` - Parses Groq response into 5 sections
+
+### FinAI Auto-Focus Feature
+Input field now automatically focuses in two scenarios:
+- **Global click handler**: Clicking anywhere on the page focuses the input (except buttons/links)
+- **Response completion**: After each AI response, cursor auto-returns to input box
+
+- **Implementation**: `src/pages/FinAI.tsx` (lines 87-117)
+  - Document event listener detects clicks
+  - `closest()` method identifies interactive elements to skip
+  - Cleanup on unmount prevents memory leaks
+  - Only focuses when input is enabled (!loading && dataLoaded)
+
+### Category Spending Trends (v1.5)
 Users can select a category and view spending trends over 3/6/12 months with:
 - **Trend line chart** showing spending over time
 - **Color-coded dots**: Green ↓ (decreased), Red ↑ (increased), Gray ⚫ (neutral)
 - **Trend statistics**: Average spending, highest month, % change
 - Fetches data using `getUniquePeriodKeysByType()` to get last N periods
 
-### Period-Based Dashboard
+### Period-Based Dashboard (v1.5)
 Dashboard now supports custom month start day with period selector matching Analytics patterns.
 
-### Admin User Management
+### Admin User Management (v1.5)
 - Toggle user admin status (owner-only: alnahash@gmail.com)
 - Delete users with proper RLS and auth cleanup
 - View login stats and activity per user
