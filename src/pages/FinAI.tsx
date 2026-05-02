@@ -200,6 +200,7 @@ export default function FinAI() {
 
 
   // ============== GROQ API INTEGRATION ==============
+  // All questions route through Groq AI for intelligent responses
 
   const callGroqAPI = async (prompt: string): Promise<string | null> => {
     if (!GROQ_API_KEY) {
