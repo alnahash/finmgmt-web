@@ -852,18 +852,18 @@ Keep the response concise and friendly.`
     setLoading(true)
     setUsingGroq(false)
 
-    // Generate response (might call Groq API)
-    setTimeout(async () => {
-      const response = await generateResponse(userMsg.content)
-      const assistantMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: response,
-        timestamp: new Date(),
-      }
-      setMessages((prev) => [...prev, assistantMsg])
-      setLoading(false)
-    }, 300)
+    // Wait a moment for better UX, then generate response
+    await new Promise(resolve => setTimeout(resolve, 300))
+
+    const response = await generateResponse(userMsg.content)
+    const assistantMsg: Message = {
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      content: response,
+      timestamp: new Date(),
+    }
+    setMessages((prev) => [...prev, assistantMsg])
+    setLoading(false)
   }
 
   const handleSuggestion = (question: string) => {
