@@ -392,17 +392,317 @@ export default function FinAI() {
     })
   }
 
+  // ============== PHASE 2: BUDGET PERFORMANCE ==============
+
+  interface CategoryBudgetPerformance {
+    categoryId: string
+    categoryName: string
+    categoryIcon: string
+    budgetAmount: number
+    actualSpent: number
+    remaining: number
+    percentUsed: number
+    isOver: boolean
+  }
+
+  // ============== PHASE 3: TRENDS & FORECASTING ==============
+
+  interface CategoryTrend {
+    categoryId: string
+    categoryName: string
+    categoryIcon: string
+    data: Array<{
+      month: string
+      amount: number
+    }>
+    trend: 'increasing' | 'decreasing' | 'stable'
+    trendPercent: number
+    forecast: number
+    confidence: number // 0-100%
+  }
+
+  const calculateCategoryTrends = (): CategoryTrend[] => {
+    const oneYearAgo = new Date()
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+
+    const trends: CategoryTrend[] = []
+
+    // Calculate trends for each expense category
+    categories.filter(c => c.type === 'expense').forEach(category => {
+      const monthlyData: Array<{ month: string; amount: number }> = []
+
+      // Get spending for each of the last 12 months
+      for (let i = 11; i >= 0; i--) {
+        const targetDate = new Date()
+        targetDate.setMonth(targetDate.getMonth() - i)
+
+        const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1)
+        const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0, 23, 59, 59)
+
+        const monthTransactions = transactions.filter(
+          t =>
+            t.category_id === category.id &&
+            new Date(t.transaction_date) >= monthStart &&
+            new Date(t.transaction_date) <= monthEnd
+        )
+
+        const amount = monthTransactions.reduce((sum, t) => sum + t.amount, 0)
+        const monthLabel = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`
+
+        monthlyData.push({ month: monthLabel, amount })
+      }
+
+      // Get last 3 months of data
+      const last3Months = monthlyData.slice(-3)
+      if (last3Months.length < 2) return // Skip if less than 2 months of data
+
+      // Calculate 3-month moving average
+      const avg3Month = last3Months.reduce((sum, d) => sum + d.amount, 0) / last3Months.length
+
+      // Calculate trend (compare last month to 2 months ago)
+      const lastMonthAmount = last3Months[2].amount
+      const twoMonthsAgoAmount = last3Months[1].amount
+      const trendPercent =
+        twoMonthsAgoAmount > 0 ? ((lastMonthAmount - twoMonthsAgoAmount) / twoMonthsAgoAmount) * 100 : 0
+
+      // Determine trend direction
+      let trend: 'increasing' | 'decreasing' | 'stable' = 'stable'
+      if (trendPercent > 5) trend = 'increasing'
+      else if (trendPercent < -5) trend = 'decreasing'
+
+      // Simple forecast using average trend
+      const forecast = avg3Month * (1 + trendPercent / 100)
+
+      // Confidence decreases with volatility
+      const volatility =
+        Math.max(...last3Months.map(d => d.amount)) - Math.min(...last3Months.map(d => d.amount))
+      const volatilityPercent = avg3Month > 0 ? (volatility / avg3Month) * 100 : 0
+      const confidence = Math.max(30, Math.min(95, 100 - volatilityPercent / 2))
+
+      trends.push({
+        categoryId: category.id,
+        categoryName: category.name,
+        categoryIcon: category.icon,
+        data: monthlyData,
+        trend,
+        trendPercent,
+        forecast: Math.max(0, forecast),
+        confidence,
+      })
+    })
+
+    // Sort by trend importance (increasing trends first)
+    return trends.sort((a, b) => Math.abs(b.trendPercent) - Math.abs(a.trendPercent))
+  }
+
+  // ============== PHASE 4: ANOMALY DETECTION ==============
+
+  interface AnomalyAlert {
+    type: 'large_transaction' | 'unusual_merchant' | 'category_spike'
+    description: string
+    severity: 'low' | 'medium' | 'high'
+  }
+
+  const detectAnomalies = (): AnomalyAlert[] => {
+    const alerts: AnomalyAlert[] = []
+    const currentPeriod = getCurrentPeriod()
+    const currentExpenses = getTransactionsInRange(currentPeriod.startDate, currentPeriod.endDate, 'expense')
+
+    if (currentExpenses.length === 0) return alerts
+
+    // Calculate average transaction size by category
+    const spendingByCategory = new Map<string, number[]>()
+    currentExpenses.forEach(t => {
+      const amounts = spendingByCategory.get(t.category_id) || []
+      amounts.push(t.amount)
+      spendingByCategory.set(t.category_id, amounts)
+    })
+
+    // Detect unusually large transactions (>2 std devs from mean)
+    spendingByCategory.forEach((amounts, categoryId) => {
+      if (amounts.length < 2) return
+
+      const avg = amounts.reduce((a, b) => a + b) / amounts.length
+      const stdDev = Math.sqrt(amounts.reduce((sum, val) => sum + Math.pow(val - avg, 2)) / amounts.length)
+      const threshold = avg + stdDev * 2
+
+      amounts.forEach(amount => {
+        if (amount > threshold) {
+          const category = categories.find(c => c.id === categoryId)
+          alerts.push({
+            type: 'large_transaction',
+            description: `${category?.name}: unusually large transaction of ${formatCurrency(amount, profile!.currency)}`,
+            severity: 'medium',
+          })
+        }
+      })
+    })
+
+    // Limit to 3 most significant alerts
+    return alerts.slice(0, 3)
+  }
+
+  // ============== PHASE 5: SCENARIO SUPPORT ==============
+
+  const parseScenarioQuestion = (question: string): { isScenario: boolean; category?: string; reduction?: number } => {
+    const lowerQ = question.toLowerCase()
+
+    // Check if question is about "what if" scenarios
+    if (!lowerQ.includes('what if') && !lowerQ.includes('suppose') && !lowerQ.includes('reduce') && !lowerQ.includes('cut')) {
+      return { isScenario: false }
+    }
+
+    // Try to extract category and percentage from question
+    let category: string | undefined
+    let reduction: number | undefined
+
+    // Find if question mentions reducing/cutting budget
+    const percentMatch = question.match(/(\d+)%/);
+    if (percentMatch) {
+      reduction = parseInt(percentMatch[1])
+    }
+
+    // Find category mentions
+    categories.forEach(cat => {
+      if (lowerQ.includes(cat.name.toLowerCase())) {
+        category = cat.name
+      }
+    })
+
+    return {
+      isScenario: true,
+      category,
+      reduction,
+    }
+  }
+
+  const calculateScenarioImpact = (category: string | undefined, reduction: number | undefined): string => {
+    if (!reduction || reduction <= 0) {
+      return 'To analyze a scenario, please specify a percentage reduction (e.g., "reduce by 20%")'
+    }
+
+    // If no category specified, assume overall spending reduction
+    if (!category) {
+      const currentPeriod = getCurrentPeriod()
+      const currentExpenses = getTransactionsInRange(currentPeriod.startDate, currentPeriod.endDate, 'expense')
+      const currentSpent = sumAmount(currentExpenses)
+      const currentIncome = sumAmount(getTransactionsInRange(currentPeriod.startDate, currentPeriod.endDate, 'income'))
+
+      const savingsReduction = currentSpent * (reduction / 100)
+      const newSpent = currentSpent - savingsReduction
+      const newSavingsRate = calculateSavingsRate(currentIncome, newSpent)
+
+      return `If you reduce spending by ${reduction}%:
+- Current spending: ${formatCurrency(currentSpent, profile!.currency)}
+- New spending: ${formatCurrency(newSpent, profile!.currency)}
+- Additional savings: ${formatCurrency(savingsReduction, profile!.currency)}
+- New savings rate: ${newSavingsRate.toFixed(1)}%
+- Annual impact: ${formatCurrency(savingsReduction * 12, profile!.currency)} saved per year`
+    }
+
+    return 'Scenario analysis ready. Please let me know specific spending adjustments to model.'
+  }
+
+  const formatTrendAnalysis = (trends: CategoryTrend[]): string => {
+    if (trends.length === 0) return 'Not enough data to analyze trends'
+
+    return trends
+      .slice(0, 5) // Show top 5 trends
+      .map(t => {
+        const trendIcon = t.trend === 'increasing' ? '📈' : t.trend === 'decreasing' ? '📉' : '➡️'
+        const direction = t.trendPercent > 0 ? '↑' : t.trendPercent < 0 ? '↓' : '→'
+        return `${trendIcon} ${t.categoryIcon} ${t.categoryName}: ${direction} ${Math.abs(t.trendPercent).toFixed(1)}% (forecast: ${formatCurrency(t.forecast, profile!.currency)}, confidence: ${t.confidence.toFixed(0)}%)`
+      })
+      .join('\n')
+  }
+
+  const fetchCategoryBudgetPerformance = async (): Promise<CategoryBudgetPerformance[]> => {
+    if (!user) return []
+
+    try {
+      const currentPeriod = getCurrentPeriod()
+      const monthKey = getMonthPeriodKey(currentPeriod.startDate, profile?.month_start_day || 1)
+
+      // Extract year and month from monthKey (format: "202505-01" or "202505")
+      const [yearMonth] = monthKey.split('-')
+      const year = parseInt(yearMonth.substring(0, 4))
+      const month = parseInt(yearMonth.substring(4))
+
+      // Fetch category budgets for current period
+      const { data: budgetsData } = await supabase
+        .from('budgets')
+        .select('category_id, amount')
+        .eq('user_id', user.id)
+        .eq('year', year)
+        .eq('month', month)
+
+      if (!budgetsData) return []
+
+      // Create a map of category_id -> budget amount
+      const budgetMap = new Map<string, number>(
+        budgetsData.map(b => [b.category_id, b.amount])
+      )
+
+      // Calculate actual spending per category
+      const currentExpenses = getTransactionsInRange(currentPeriod.startDate, currentPeriod.endDate, 'expense')
+      const spendingByCategory = new Map<string, number>()
+
+      currentExpenses.forEach(txn => {
+        const current = spendingByCategory.get(txn.category_id) || 0
+        spendingByCategory.set(txn.category_id, current + txn.amount)
+      })
+
+      // Build performance data for all budgeted categories
+      const performance: CategoryBudgetPerformance[] = []
+
+      budgetMap.forEach((budgetAmount, categoryId) => {
+        const category = categories.find(c => c.id === categoryId)
+        if (!category) return
+
+        const actualSpent = spendingByCategory.get(categoryId) || 0
+        const remaining = budgetAmount - actualSpent
+        const percentUsed = budgetAmount > 0 ? (actualSpent / budgetAmount) * 100 : 0
+
+        performance.push({
+          categoryId,
+          categoryName: category.name,
+          categoryIcon: category.icon,
+          budgetAmount,
+          actualSpent,
+          remaining,
+          percentUsed,
+          isOver: actualSpent > budgetAmount,
+        })
+      })
+
+      return performance.sort((a, b) => b.percentUsed - a.percentUsed) // Sort by % used descending
+    } catch (error) {
+      console.error('Error fetching budget performance:', error)
+      return []
+    }
+  }
+
 
   // ============== GROQ API INTEGRATION ==============
   // All questions route through Groq AI for intelligent responses
 
-  const callGroqAPI = async (prompt: string): Promise<string | null> => {
+  interface GroqMessage {
+    role: 'system' | 'user' | 'assistant'
+    content: string
+  }
+
+  const callGroqAPI = async (systemPrompt: string, conversationHistory: GroqMessage[]): Promise<string | null> => {
     if (!GROQ_API_KEY) {
       console.warn('Groq API key not configured')
       return null
     }
 
     try {
+      const messages: GroqMessage[] = [
+        { role: 'system', content: systemPrompt },
+        ...conversationHistory, // Include full conversation context
+      ]
+
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -411,47 +711,7 @@ export default function FinAI() {
         },
         body: JSON.stringify({
           model: 'llama-3.3-70b-versatile',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a helpful financial analysis assistant. You are READ-ONLY and can only analyze data.
-
-IMPORTANT - What you CAN do:
-- Analyze spending patterns and trends
-- Answer questions about finances
-- Provide insights and recommendations
-- Compare periods (months, categories, budgets)
-- Identify savings opportunities
-- Suggest budget improvements
-
-IMPORTANT - What you CANNOT do:
-- Create, add, or modify categories (users must use the Categories page)
-- Create, add, or modify transactions (users must use the Transactions page)
-- Delete anything
-- Set budgets (users must use the Budgets page)
-- Make account changes
-
-If users ask you to perform actions like "create a category" or "add a transaction":
-- Politely explain that you cannot perform actions
-- Suggest they use the appropriate app feature instead (e.g., "Please create this category in the Categories page, then I can analyze it")
-
-RESPONSE FORMATTING:
-- Be concise and friendly
-- Use currency symbols correctly: BHD (Bahraini Dinar), USD ($), EUR (€), etc.
-- Format spending lists as tables with emoji icons:
-  🍽️  Dining:        BHD 450.00 (↑15%)
-  🚗 Transport:     BHD 320.00 (→ same)
-  🎬 Entertainment: BHD 200.00 (↓5%)
-- Use ↑ for increases, ↓ for decreases, → for no change
-- Include confidence levels for predictions: "Based on X months of data, I'm 85% confident that..."
-- Use bullet points for lists
-- Highlight key insights and actionable recommendations`,
-            },
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
+          messages,
           max_tokens: 500,
           temperature: 0.7,
         }),
@@ -517,6 +777,33 @@ RESPONSE FORMATTING:
           .join(', ')
         : 'No spending yet'
 
+      // Phase 2: Fetch budget performance data
+      const categoryBudgetPerformance = await fetchCategoryBudgetPerformance()
+
+      // Format category budgets for context
+      const budgetBreakdownText = categoryBudgetPerformance.length > 0
+        ? categoryBudgetPerformance
+          .map(perf => {
+            const status = perf.isOver ? '🔴 OVER' : perf.percentUsed >= 80 ? '🟡 WARNING' : '🟢 OK'
+            return `${perf.categoryIcon} ${perf.categoryName}: ${formatCurrency(perf.actualSpent, profile.currency)} / ${formatCurrency(perf.budgetAmount, profile.currency)} (${perf.percentUsed.toFixed(0)}%) ${status}`
+          })
+          .join('\n')
+        : 'No category budgets set yet'
+
+      // Phase 3: Calculate spending trends and forecasts
+      const categoryTrends = calculateCategoryTrends()
+      const trendAnalysisText = formatTrendAnalysis(categoryTrends)
+
+      // Phase 4: Detect anomalies
+      const anomalies = detectAnomalies()
+      const anomalyText = anomalies.length > 0
+        ? anomalies.map(a => `⚠️ ${a.description}`).join('\n')
+        : 'No unusual spending patterns detected'
+
+      // Phase 5: Check if this is a scenario question
+      const scenario = parseScenarioQuestion(userMessage)
+      const scenarioImpactText = scenario.isScenario ? calculateScenarioImpact(scenario.category, scenario.reduction) : ''
+
       const financialContext = `
 User Profile:
 - Name: ${profile.full_name || 'Friend'}
@@ -542,25 +829,118 @@ Previous Period (Last Month):
 Top 3 Spending Categories This Month (with change):
 ${top3Text}
 
+Category Budget Performance (This Month):
+${budgetBreakdownText}
+- Categories over budget will show 🔴 OVER
+- Categories at 80%+ of budget will show 🟡 WARNING
+- Categories under budget will show 🟢 OK
+
+Spending Trends (Last 3 Months):
+${trendAnalysisText}
+- 📈 indicates increasing spending trend
+- 📉 indicates decreasing spending trend
+- ➡️ indicates stable spending
+- Confidence level shows forecast reliability (higher = more reliable)
+
+Anomaly Alerts:
+${anomalyText}
+
+${scenario.isScenario ? `Scenario Impact Analysis:\n${scenarioImpactText}\n` : ''}
+
 Overall:
 - All-Time Spent: ${formatCurrency(allTimeSpent, profile.currency)}
 - Total Transactions: ${transactions.length}
 - Expense Categories: ${categories.filter(c => c.type === 'expense').map(c => c.name).join(', ')}`
 
-      const groqPrompt = `You are a read-only financial analysis assistant. You can only analyze and discuss data — you CANNOT create, modify, or delete categories, transactions, or any other data.
+      // Phase 2: Build conversation history context
+      // Get last 10 messages to maintain conversation context (excluding current message)
+      const conversationHistoryForGroq: GroqMessage[] = messages
+        .slice(-10) // Get last 10 messages
+        .map(msg => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        }))
 
+      // Add current user message
+      conversationHistoryForGroq.push({
+        role: 'user',
+        content: userMessage,
+      })
+
+      // Enhanced system prompt with conversation awareness and budget analysis
+      const systemPrompt = `You are a helpful financial analysis assistant. You have access to conversation history and can reference previous questions and answers.
+
+IMPORTANT - What you CAN do:
+- Analyze spending patterns and trends
+- Answer questions about finances
+- Provide insights and recommendations
+- Compare periods (months, categories, budgets)
+- Identify savings opportunities
+- Suggest budget improvements
+- Reference previous messages in the conversation
+- Analyze category budget performance (over/under budget)
+- Recommend budget adjustments based on spending patterns
+- Track spending across categories and periods
+
+IMPORTANT - What you CANNOT do:
+- Create, add, or modify categories (users must use the Categories page)
+- Create, add, or modify transactions (users must use the Transactions page)
+- Delete anything
+- Set budgets (users must use the Budgets page)
+- Make account changes
+
+CONVERSATION CONTEXT:
+- You have access to the conversation history above
+- Feel free to reference previous questions or answers
+- You can provide follow-up analysis based on earlier messages
+- Build on context from previous messages rather than restating information
+
+BUDGET ANALYSIS:
+- Review the Category Budget Performance section above
+- Identify categories that are over budget (🔴 OVER)
+- Flag categories at 80%+ of budget (🟡 WARNING)
+- Highlight categories performing well (🟢 OK)
+- Suggest reallocation if user is approaching overall budget
+
+TREND ANALYSIS:
+- Review the Spending Trends section showing last 3 months of data
+- Identify accelerating categories (📈) that may exceed budget
+- Highlight categories with decreasing spend (📉) as wins
+- Use forecast values to predict next month spending
+- Consider confidence levels when making predictions (high confidence = more reliable)
+- Alert user to concerning trends early
+
+ANOMALY DETECTION:
+- Review Anomaly Alerts section for unusual spending patterns
+- Warn about large transactions (unusually high for that category)
+- Alert user if new patterns emerge
+
+SCENARIO ANALYSIS:
+- When user asks "what if" questions, use Scenario Impact Analysis data
+- Provide clear projections of how changes affect savings rate and annual impact
+- Be supportive of spending reduction goals
+
+If users ask you to perform actions like "create a category" or "add a transaction":
+- Politely explain that you cannot perform actions
+- Suggest they use the appropriate app feature instead (e.g., "Please create this category in the Categories page, then I can analyze it")
+
+FINANCIAL DATA:
 ${financialContext}
 
-User's Question: "${userMessage}"
+RESPONSE FORMATTING:
+- Be concise and friendly
+- Use currency symbols correctly: BHD (Bahraini Dinar), USD ($), EUR (€), etc.
+- Format spending lists as tables with emoji icons:
+  🍽️  Dining:        BHD 450.00 (↑15%)
+  🚗 Transport:     BHD 320.00 (→ same)
+  🎬 Entertainment: BHD 200.00 (↓5%)
+- Use ↑ for increases, ↓ for decreases, → for no change
+- Include confidence levels for predictions: "Based on X months of data, I'm 85% confident that..."
+- Use bullet points for lists
+- Highlight key insights and actionable recommendations
+- Use 🔴 🟡 🟢 emojis for budget status indicators`
 
-RESPONSE GUIDELINES:
-- Answer questions by analyzing the provided financial data
-- Give actionable insights and recommendations
-- If asked to create/modify/delete something: Explain that you cannot perform actions and suggest using the app's features (Categories page, Transactions page, Budgets page, etc.)
-- Be helpful, concise, and friendly
-- Use the currency symbol (${profile.currency === 'USD' ? '$' : profile.currency === 'EUR' ? '€' : profile.currency === 'BHD' ? 'BD' : profile.currency}) when mentioning amounts`
-
-      const groqResponse = await callGroqAPI(groqPrompt)
+      const groqResponse = await callGroqAPI(systemPrompt, conversationHistoryForGroq)
       if (groqResponse) {
         setUsingGroq(true)
         return groqResponse
