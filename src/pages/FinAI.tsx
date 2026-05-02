@@ -495,11 +495,6 @@ RESPONSE FORMATTING:
       const previousExpenses = getTransactionsInRange(previousPeriod.startDate, previousPeriod.endDate, 'expense')
       const previousSpent = sumAmount(previousExpenses)
 
-      const categoryBreakdown = getCategoryBreakdown(currentExpenses)
-      const topCategoryText = categoryBreakdown.length > 0
-        ? `${categoryBreakdown[0].category.name}: ${formatCurrency(categoryBreakdown[0].amount, profile.currency)}`
-        : 'No spending yet'
-
       const allTimeExpenses = getTransactionsInRange('1900-01-01', '2100-01-01', 'expense')
       const allTimeSpent = sumAmount(allTimeExpenses)
 
