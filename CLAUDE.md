@@ -573,10 +573,16 @@ VITE_ADMIN_EMAILS=admin1@example.com,admin2@example.com
 4. Deployment takes 1-2 minutes typically
 5. Automatic redirect from production domain
 
-### Manual Deployment
+### Manual Deployment (⚠️ REQUIRED - Webhook Not Working)
+⚠️ **IMPORTANT**: GitHub webhook is NOT automatically triggering Vercel deployments. You MUST manually deploy after pushing:
+
 ```bash
-npx vercel deploy --prod --yes
+npm run build                 # Verify local build succeeds first
+git push origin main         # Push to GitHub
+npx vercel deploy --prod --yes  # ⚠️ MANUALLY trigger Vercel deployment
 ```
+
+**This is NOT optional** - without the manual `vercel deploy` command, your changes won't reach production even though git push succeeds!
 
 ### Checking Deployment Status
 - Vercel Dashboard: https://vercel.com/dashboard
@@ -595,7 +601,7 @@ If `npm run build` fails locally:
 
 ## 🔍 Deployment Verification Checklist (IMPORTANT)
 
-**⚠️ NOT all code changes auto-deploy to Vercel successfully. You MUST verify each deployment.**
+**⚠️ CRITICAL: GitHub webhooks are NOT working. You MUST manually deploy to Vercel after every git push.**
 
 ### After Each Code Change, Follow This Process:
 
@@ -604,11 +610,18 @@ If `npm run build` fails locally:
 # Ensure TypeScript compiles without errors
 npm run build
 
-# If build succeeds, you're safe to push
+# If build succeeds, continue
 git add -A
 git commit -m "..."
 git push origin main
 ```
+
+#### 1.5️⃣ **⚠️ MANUAL VERCEL DEPLOYMENT (REQUIRED!)**
+```bash
+# DO NOT SKIP THIS STEP - webhook is not working!
+npx vercel deploy --prod --yes
+```
+**Wait for output showing "Production: https://finmgmt-..." and "Aliased: https://finmgmt-web.vercel.app"**
 
 #### 2️⃣ **Wait for Vercel Build** (2-3 minutes typically)
 - Vercel detects push within 10-30 seconds
@@ -712,9 +725,13 @@ git log -1 --oneline
 
 ### Automation Tip for Future Sessions
 
-When starting work, always:
-1. Run `npm run build` first to catch issues early
-2. After each meaningful change, commit and push
-3. Check Vercel deployment status (use `mcp__961bc09c-2b3e-4aeb-8e16-ca9745276a5e__list_deployments` tool)
-4. Verify production URL shows new changes before continuing
-5. Only move to next task after confirming deployment is READY
+**WORKFLOW (since webhook doesn't work)**:
+1. Run `npm run build` locally to verify no TypeScript errors
+2. `git add -A && git commit -m "..."` with clear message
+3. `git push origin main` to GitHub
+4. **`npx vercel deploy --prod --yes`** ← ⚠️ DO NOT SKIP!
+5. Wait for "Aliased: https://finmgmt-web.vercel.app [XXs]" message
+6. Test production URL to verify changes are live
+7. Only move to next task after confirming changes visible
+
+**Key point**: `git push` alone is NOT enough. Manual `vercel deploy` is required!
