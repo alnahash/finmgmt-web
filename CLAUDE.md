@@ -592,3 +592,129 @@ If `npm run build` fails locally:
 5. Delete `node_modules` and `.next` (if exists), reinstall
 
 **Deployment lag note**: Code changes may take time to deploy. Always check Vercel logs to confirm deployment succeeded before investigating further.
+
+## 🔍 Deployment Verification Checklist (IMPORTANT)
+
+**⚠️ NOT all code changes auto-deploy to Vercel successfully. You MUST verify each deployment.**
+
+### After Each Code Change, Follow This Process:
+
+#### 1️⃣ **Local Build Verification** (Before pushing)
+```bash
+# Ensure TypeScript compiles without errors
+npm run build
+
+# If build succeeds, you're safe to push
+git add -A
+git commit -m "..."
+git push origin main
+```
+
+#### 2️⃣ **Wait for Vercel Build** (2-3 minutes typically)
+- Vercel detects push within 10-30 seconds
+- Build starts automatically
+- Total build time: 1-3 minutes depending on asset size
+
+#### 3️⃣ **Check Deployment Status** (Use Vercel API)
+```bash
+# Get latest deployments
+vercel --prod --token=<YOUR_TOKEN>
+
+# OR use curl (from project directory with .vercel/project.json)
+curl -H "Authorization: Bearer <TOKEN>" \
+  "https://api.vercel.com/v13/deployments?projectId=<PROJECT_ID>&teamId=<TEAM_ID>&limit=5"
+```
+
+#### 4️⃣ **Verify Deployment State**
+Look for the **newest deployment** in Vercel dashboard:
+- ✅ **State: READY** → Successfully deployed (can take 1-3 min)
+- 🔄 **State: BUILDING** → Still building, wait 1-2 min and recheck
+- ❌ **State: ERROR** → Build failed, check build logs
+- ⏳ **Commit SHA doesn't match** → Vercel hasn't picked up push yet, wait 30 sec and recheck
+
+#### 5️⃣ **Test the Production URL**
+```bash
+# After READY state confirmed, test the live app
+# Production URL: https://finmgmt-web.vercel.app
+
+# Quick checks:
+# 1. Open the app in browser
+# 2. Navigate to the changed feature/page
+# 3. Verify the changes are visible
+# 4. Check browser console for errors (F12 → Console tab)
+# 5. Test the specific functionality that was changed
+```
+
+#### 6️⃣ **Verify Specific Changes**
+Examples:
+- **Code changes to Insights.tsx**:
+  - Click "Insights" tab in sidebar
+  - Click "Generate AI Report" button
+  - Verify new profile data appears in the prompt (name, email, etc.)
+  - Check browser console for any errors
+
+- **New components**:
+  - Navigate to the page with the new component
+  - Verify it renders correctly
+  - Check for layout/styling issues
+
+- **Database query changes**:
+  - Perform the action that triggers the query
+  - Verify correct data appears
+  - Check browser Network tab for API response
+
+### Common Deployment Failures & Fixes
+
+| Failure | Cause | Fix |
+|---------|-------|-----|
+| **TypeScript Error on Vercel** | Local build succeeded but Vercel build failed | Check node_modules/dependencies. Delete `.next` folder. Push again. |
+| **Build logs show "Can't find module"** | Missing dependency | Run `npm install <package>` and commit lock file |
+| **Layout looks broken** | CSS import issue | Verify TailwindCSS classes are used correctly, check for typos |
+| **API call fails in production** | Environment variables not set | Check .env.production in Vercel dashboard |
+| **Old code still showing** | Browser cache | Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac) |
+| **Deployment stuck at 50%** | Build timeout (rare) | Manually cancel deployment in Vercel and push again |
+
+### Tools for Vercel Deployment Verification
+
+**Option 1: Vercel Dashboard (Manual)**
+- Navigate to https://vercel.com/dashboard
+- Select project → Deployments tab
+- Look for newest commit SHA and check state
+
+**Option 2: Vercel CLI**
+```bash
+# Install once
+npm i -g vercel
+
+# Check status (from project directory)
+vercel status
+
+# View recent deployments
+vercel list
+```
+
+**Option 3: Git Commit SHA Matching**
+```bash
+# Get latest commit on main
+git log -1 --oneline
+
+# Check latest Vercel deployment's commit SHA
+# (should appear in Vercel dashboard within 30 seconds of push)
+```
+
+### What NOT to Do
+
+❌ Don't assume deployment succeeded just because `git push` succeeded
+❌ Don't wait only 10 seconds before checking - Vercel takes 1-3 minutes
+❌ Don't reload the browser expecting changes - if old code shows, deployment might have failed
+❌ Don't push multiple changes rapidly without verifying each one deployed
+❌ Don't skip the local `npm run build` check before pushing
+
+### Automation Tip for Future Sessions
+
+When starting work, always:
+1. Run `npm run build` first to catch issues early
+2. After each meaningful change, commit and push
+3. Check Vercel deployment status (use `mcp__961bc09c-2b3e-4aeb-8e16-ca9745276a5e__list_deployments` tool)
+4. Verify production URL shows new changes before continuing
+5. Only move to next task after confirming deployment is READY
