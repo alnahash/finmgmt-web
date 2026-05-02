@@ -202,22 +202,37 @@ export default function FinAI() {
     'july', 'august', 'september', 'october', 'november', 'december',
   ]
 
+  const MONTH_ABBREV = [
+    'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+    'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+  ]
+
   const parseMonthAndYear = (text: string): { month: number; year: number } | null => {
     const lower = text.toLowerCase()
 
-    // Try to find month name
+    // Try to find month abbreviation first (Jan, Feb, Mar, etc.)
     let monthIndex = -1
-    for (let i = 0; i < MONTH_NAMES.length; i++) {
-      if (lower.includes(MONTH_NAMES[i])) {
+    for (let i = 0; i < MONTH_ABBREV.length; i++) {
+      if (lower.includes(MONTH_ABBREV[i])) {
         monthIndex = i
         break
       }
     }
 
+    // If no abbreviation found, try full month names
+    if (monthIndex === -1) {
+      for (let i = 0; i < MONTH_NAMES.length; i++) {
+        if (lower.includes(MONTH_NAMES[i])) {
+          monthIndex = i
+          break
+        }
+      }
+    }
+
     if (monthIndex === -1) return null
 
-    // Try to find year (4-digit number)
-    const yearMatch = text.match(/\b(202[0-9]|202[0-9])\b/)
+    // Try to find year (4-digit number starting with 20)
+    const yearMatch = text.match(/\b(202[0-9])\b/)
     const year = yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear()
 
     return { month: monthIndex + 1, year }
