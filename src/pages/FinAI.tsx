@@ -71,6 +71,7 @@ export default function FinAI() {
   useEffect(() => {
     if (user) {
       loadUserData()
+      loadChatHistory()
     }
   }, [user])
 
@@ -157,19 +158,83 @@ export default function FinAI() {
       if (txData) setTransactions(txData)
 
       setDataLoaded(true)
+    } catch (error) {
+      console.error('Error loading data:', error)
+    }
+  }
 
-      // Add welcome message
-      const welcomeName = profileData?.full_name?.split(' ')[0] || 'there'
-      setMessages([
-        {
-          id: '1',
+  const loadChatHistory = async () => {
+    if (!user) return
+
+    try {
+      const { data: messagesData } = await supabase
+        .from('chat_messages')
+        .select('id, role, content, timestamp, is_ai')
+        .eq('user_id', user.id)
+        .order('timestamp', { ascending: true })
+
+      if (messagesData && messagesData.length > 0) {
+        // Load existing chat history
+        const loadedMessages: Message[] = messagesData.map((msg) => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: new Date(msg.timestamp),
+          isAI: msg.is_ai,
+        }))
+        setMessages(loadedMessages)
+      } else {
+        // No history - add welcome message
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single()
+
+        const welcomeName = profileData?.full_name?.split(' ')[0] || 'there'
+        const welcomeMsg: Message = {
+          id: `welcome-${Date.now()}`,
           role: 'assistant',
           content: `Hello ${welcomeName}! 👋 I'm FinAI, your personal finance assistant. I can analyze your spending, savings, categories, and trends. Ask me anything about your finances!`,
           timestamp: new Date(),
-        },
-      ])
+        }
+        setMessages([welcomeMsg])
+
+        // Save welcome message to database
+        await supabase.from('chat_messages').insert({
+          user_id: user.id,
+          role: 'assistant',
+          content: welcomeMsg.content,
+          timestamp: new Date().toISOString(),
+          is_ai: false,
+        })
+      }
     } catch (error) {
-      console.error('Error loading data:', error)
+      console.error('Error loading chat history:', error)
+      // Fallback: show welcome message if loading fails
+      const welcomeMsg: Message = {
+        id: `welcome-${Date.now()}`,
+        role: 'assistant',
+        content: `Hello! 👋 I'm FinAI, your personal finance assistant. I can analyze your spending, savings, categories, and trends. Ask me anything about your finances!`,
+        timestamp: new Date(),
+      }
+      setMessages([welcomeMsg])
+    }
+  }
+
+  const saveMessageToDatabase = async (message: Message) => {
+    if (!user) return
+
+    try {
+      await supabase.from('chat_messages').insert({
+        user_id: user.id,
+        role: message.role,
+        content: message.content,
+        timestamp: message.timestamp.toISOString(),
+        is_ai: message.isAI || false,
+      })
+    } catch (error) {
+      console.error('Error saving message to database:', error)
     }
   }
 
@@ -374,6 +439,9 @@ Provide a helpful, concise, and friendly response. Use the currency symbol (${pr
     setLoading(true)
     setUsingGroq(false)
 
+    // Save user message to database
+    await saveMessageToDatabase(userMsg)
+
     // Wait a moment for better UX, then generate response
     await new Promise(resolve => setTimeout(resolve, 300))
 
@@ -386,6 +454,10 @@ Provide a helpful, concise, and friendly response. Use the currency symbol (${pr
       isAI: usingGroq,
     }
     setMessages((prev) => [...prev, assistantMsg])
+
+    // Save assistant message to database
+    await saveMessageToDatabase(assistantMsg)
+
     setLoading(false)
   }
 
