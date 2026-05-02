@@ -61,6 +61,8 @@ export default function AdminPanel() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ userId: string; email: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [togglingAdmin, setTogglingAdmin] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const isOwner = user?.email?.toLowerCase() === 'alnahash@gmail.com'
 
   useEffect(() => {
@@ -157,10 +159,10 @@ export default function AdminPanel() {
       await new Promise(resolve => setTimeout(resolve, 500)) // Small delay to ensure DB is updated
       await fetchAdminData()
 
-      alert('✅ User deleted successfully!')
+      setSuccessMessage('User deleted successfully!')
     } catch (error) {
       console.error('Error deleting user:', error)
-      alert('Failed to delete user: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      setErrorMessage('Failed to delete user: ' + (error instanceof Error ? error.message : 'Unknown error'))
       // Still try to refresh in case some data was deleted
       await fetchAdminData()
     } finally {
@@ -494,6 +496,60 @@ export default function AdminPanel() {
                       )}
                     </button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Success Modal */}
+            {successMessage && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="w-10 h-10 rounded-lg bg-green-900/30 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-white">Success!</h3>
+                  </div>
+
+                  <p className="text-slate-400 mb-6">
+                    {successMessage}
+                  </p>
+
+                  <button
+                    onClick={() => setSuccessMessage(null)}
+                    className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition font-medium"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Error Modal */}
+            {errorMessage && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 max-w-md w-full">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="w-10 h-10 rounded-lg bg-red-900/30 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-white">Error</h3>
+                  </div>
+
+                  <p className="text-slate-400 mb-6">
+                    {errorMessage}
+                  </p>
+
+                  <button
+                    onClick={() => setErrorMessage(null)}
+                    className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition font-medium"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
             )}
