@@ -424,107 +424,57 @@ export default function FinAI() {
       return "I don't see any transactions yet. Start adding some on the Transactions page, then come back to ask me about them!"
     }
 
-    const intent = detectIntent(userMessage)
-    const period = detectPeriod(userMessage)
+    // Always use Groq AI for all questions
+    if (GROQ_API_KEY) {
+      // Build financial context for Groq
+      const currentPeriod = getCurrentPeriod()
+      const previousPeriod = getPreviousPeriod()
 
-    const { startDate, endDate, label } =
-      period === 'previous'
-        ? getPreviousPeriod()
-        : period === 'all'
-        ? { startDate: '1900-01-01', endDate: '2100-01-01', label: 'all time' }
-        : getCurrentPeriod()
+      const currentExpenses = getTransactionsInRange(currentPeriod.startDate, currentPeriod.endDate, 'expense')
+      const currentIncome = getTransactionsInRange(currentPeriod.startDate, currentPeriod.endDate, 'income')
+      const currentSpent = sumAmount(currentExpenses)
+      const currentEarned = sumAmount(currentIncome)
 
-    switch (intent) {
-      case 'top_categories_specific_month': {
-        const parsed = parseMonthAndYear(userMessage)
-        if (parsed) {
-          const { startDate, endDate, label } = getPeriodForMonthYear(parsed.month, parsed.year)
-          return generateTopCategoriesResponse(startDate, endDate, label)
-        }
-        return 'Could not parse the month/year. Try "March 2025" or "April 2024".'
-      }
+      const previousExpenses = getTransactionsInRange(previousPeriod.startDate, previousPeriod.endDate, 'expense')
+      const previousSpent = sumAmount(previousExpenses)
 
-      case 'total_spent_specific_month': {
-        const parsed = parseMonthAndYear(userMessage)
-        if (parsed) {
-          const { startDate, endDate, label } = getPeriodForMonthYear(parsed.month, parsed.year)
-          return generateTotalSpentResponse(startDate, endDate, label)
-        }
-        return 'Could not parse the month/year. Try "March 2025" or "April 2024".'
-      }
+      const categoryBreakdown = getCategoryBreakdown(currentExpenses)
+      const topCategoryText = categoryBreakdown.length > 0
+        ? `${categoryBreakdown[0].name}: ${formatCurrency(categoryBreakdown[0].amount, profile.currency)}`
+        : 'No spending yet'
 
-      case 'savings_specific_month': {
-        const parsed = parseMonthAndYear(userMessage)
-        if (parsed) {
-          const { startDate, endDate, label } = getPeriodForMonthYear(parsed.month, parsed.year)
-          return generateSavingsResponse(startDate, endDate, label)
-        }
-        return 'Could not parse the month/year. Try "March 2025" or "April 2024".'
-      }
+      const allTimeExpenses = getTransactionsInRange('1900-01-01', '2100-01-01', 'expense')
+      const allTimeSpent = sumAmount(allTimeExpenses)
 
-      case 'greeting':
-        return `Hello! 😊 I'm here to help you understand your finances. Try asking me about your spending, savings, or specific categories.`
+      const financialContext = `
+User's Financial Summary:
+- Currency: ${profile.currency}
+- Monthly Budget: ${formatCurrency(profile.monthly_budget, profile.currency)}
+- This Month Spent: ${formatCurrency(currentSpent, profile.currency)} (${currentExpenses.length} transactions)
+- This Month Earned: ${formatCurrency(currentEarned, profile.currency)}
+- Last Month Spent: ${formatCurrency(previousSpent, profile.currency)}
+- All-Time Spent: ${formatCurrency(allTimeSpent, profile.currency)}
+- Top Category This Month: ${topCategoryText}
+- Total Transactions: ${transactions.length}
+- Categories: ${categories.filter(c => c.type === 'expense').map(c => c.name).join(', ')}`
 
-      case 'help':
-        return `I can help you with:\n\n💰 **Spending**: "How much did I spend this month?"\n📊 **Categories**: "What's my top spending category?"\n💵 **Savings**: "How much did I save this month?"\n📈 **Comparison**: "Compare this month to last month"\n🎯 **Budget**: "What's my budget status?"\n📋 **History**: "Show me recent transactions"\n📉 **Trends**: "How is my spending trending?"\n\nJust ask in plain English!`
+      const groqPrompt = `You are a helpful personal finance assistant. Answer the user's question about their finances based on their data.
 
-      case 'budget':
-        return generateBudgetResponse()
+${financialContext}
 
-      case 'savings':
-        return generateSavingsResponse(startDate, endDate, label)
+User's Question: "${userMessage}"
 
-      case 'income':
-        return generateIncomeResponse(startDate, endDate, label)
+Provide a helpful, concise, and friendly response. Use the currency symbol (${profile.currency === 'USD' ? '$' : profile.currency === 'EUR' ? '€' : profile.currency === 'BHD' ? 'BD' : profile.currency}) when mentioning amounts. Give actionable insights when relevant.`
 
-      case 'compare':
-        return generateCompareResponse()
-
-      case 'top_categories':
-        return generateTopCategoriesResponse(startDate, endDate, label)
-
-      case 'category_specific': {
-        const cat = findCategoryInText(userMessage)
-        if (cat) return generateCategoryResponse(cat, startDate, endDate, label)
-        return 'I could not find that category. Try asking about one of your existing categories.'
-      }
-
-      case 'recent':
-        return generateRecentTransactionsResponse()
-
-      case 'average':
-        return generateAverageResponse(startDate, endDate, label)
-
-      case 'trend':
-        return generateTrendResponse()
-
-      case 'total_spent':
-        return generateTotalSpentResponse(startDate, endDate, label)
-
-      case 'count':
-        return generateCountResponse(startDate, endDate, label)
-
-      case 'list_categories':
-        return generateCategoryListResponse()
-
-      default: {
-        // For unknown intents, try Groq if available
-        if (GROQ_API_KEY) {
-          const groqPrompt = `The user asked about their finances: "${userMessage}"
-
-Based on their transaction data, please provide a helpful response about their spending, savings, or financial patterns.
-Keep the response concise and friendly.`
-          const groqResponse = await callGroqAPI(groqPrompt)
-          if (groqResponse) {
-            setUsingGroq(true)
-            return groqResponse
-          }
-        }
-
-        // Fallback if Groq fails or not configured
-        return `I'm not sure I understood that. 🤔 Try asking me about:\n\n• Your spending this month\n• Top spending categories\n• How much you saved\n• Budget status\n• A specific category like "Food & Dining"\n\nOr type "help" to see all I can do!`
+      const groqResponse = await callGroqAPI(groqPrompt)
+      if (groqResponse) {
+        setUsingGroq(true)
+        return groqResponse
       }
     }
+
+    // Fallback if Groq not configured
+    return `I'm here to help with your finances, but I need the AI service to be configured. Try asking about your spending, savings, budget, or specific spending categories!`
   }
 
   // ============== RESPONSE BUILDERS ==============
