@@ -1,178 +1,186 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { Mail, CheckCircle, AlertCircle, Loader } from 'lucide-react'
-
-type VerificationState = 'loading' | 'success' | 'error' | 'resend'
+import { Mail, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 
 export default function EmailVerification() {
-  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [state, setState] = useState<VerificationState>('loading')
-  const [error, setError] = useState('')
-  const [resendEmail, setResendEmail] = useState('')
-  const [resendLoading, setResendLoading] = useState(false)
-  const [resendMessage, setResendMessage] = useState('')
+  const navigate = useNavigate()
+  const [status, setStatus] = useState<'verifying' | 'verified' | 'error'>('verifying')
+  const [errorMessage, setErrorMessage] = useState('')
+  const [canResend, setCanResend] = useState(false)
+  const [resendCountdown, setResendCountdown] = useState(0)
 
   useEffect(() => {
     verifyEmail()
   }, [])
+
+  // Handle resend countdown
+  useEffect(() => {
+    if (resendCountdown > 0) {
+      const timer = setTimeout(() => setResendCountdown(resendCountdown - 1), 1000)
+      return () => clearTimeout(timer)
+    }
+    if (resendCountdown === 0 && !canResend && status === 'error') {
+      setCanResend(true)
+    }
+  }, [resendCountdown, canResend, status])
 
   const verifyEmail = async () => {
     try {
       const token = searchParams.get('token')
       const type = searchParams.get('type')
 
-      if (!token || !type) {
-        setError('Invalid verification link. Please check your email for the correct link.')
-        setState('error')
+      if (!token || type !== 'signup') {
+        setStatus('error')
+        setErrorMessage('Invalid verification link. Please check your email and try again.')
+        setCanResend(true)
         return
       }
 
-      // Verify the OTP token
-      const { error: verifyError } = await supabase.auth.verifyOtp({
+      // Extract token and verify with Supabase
+      const { error } = await supabase.auth.verifyOtp({
         token_hash: token,
-        type: type as 'signup' | 'recovery' | 'invite' | 'magiclink',
+        type: 'signup',
       })
 
-      if (verifyError) {
-        throw verifyError
+      if (error) {
+        setStatus('error')
+        setErrorMessage(error.message || 'Failed to verify email. The link may have expired.')
+        setCanResend(true)
+        return
       }
 
-      setState('success')
+      setStatus('verified')
       // Redirect to login after 2 seconds
       setTimeout(() => {
-        navigate('/login')
+        navigate('/login', { replace: true })
       }, 2000)
-    } catch (err) {
-      console.error('Email verification error:', err)
-      const errorMessage = err instanceof Error ? err.message : 'Failed to verify email'
-      setError(errorMessage)
-      setState('error')
+    } catch (error) {
+      console.error('Verification error:', error)
+      setStatus('error')
+      setErrorMessage('An unexpected error occurred. Please try again.')
+      setCanResend(true)
     }
   }
 
-  const handleResendEmail = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setResendLoading(true)
-    setResendMessage('')
+  const handleResend = async () => {
+    setCanResend(false)
+    setResendCountdown(60)
+    setStatus('verifying')
 
     try {
-      if (!resendEmail) {
-        setError('Please enter your email address')
+      const email = localStorage.getItem('pending_verification_email')
+      if (!email) {
+        setStatus('error')
+        setErrorMessage('Email not found. Please try signing up again.')
+        setCanResend(true)
         return
       }
 
-      // Resend verification email
-      const { error: resendError } = await supabase.auth.resend({
+      const { error } = await supabase.auth.resend({
         type: 'signup',
-        email: resendEmail,
+        email: email,
       })
 
-      if (resendError) {
-        throw resendError
+      if (error) {
+        setStatus('error')
+        setErrorMessage(error.message || 'Failed to resend verification email.')
+        setCanResend(true)
+        setResendCountdown(0)
+        return
       }
 
-      setResendMessage('Check your email for a new verification link')
-      setResendEmail('')
-    } catch (err) {
-      console.error('Resend email error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to resend email')
-    } finally {
-      setResendLoading(false)
+      setStatus('error')
+      setErrorMessage('Verification email resent! Check your inbox.')
+      setResendCountdown(60)
+    } catch (error) {
+      console.error('Resend error:', error)
+      setStatus('error')
+      setErrorMessage('Failed to resend email. Please try again.')
+      setCanResend(true)
+      setResendCountdown(0)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-xl p-8">
-          {/* Loading State */}
-          {state === 'loading' && (
-            <div className="text-center">
-              <div className="flex justify-center mb-6">
-                <Loader className="w-12 h-12 text-primary-500 animate-spin" />
-              </div>
-              <h1 className="text-3xl font-bold text-white mb-2">Verifying Email</h1>
-              <p className="text-slate-400">Please wait while we verify your email...</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 flex items-center justify-center p-4">
+      <div className="max-w-md w-full">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-block p-3 bg-primary-500/20 rounded-full mb-4">
+            <Mail className="w-8 h-8 text-primary-500" />
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">Email Verification</h1>
+        </div>
+
+        {/* Verifying State */}
+        {status === 'verifying' && (
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+            <div className="flex justify-center mb-4">
+              <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
             </div>
-          )}
+            <p className="text-slate-300">Verifying your email...</p>
+          </div>
+        )}
 
-          {/* Success State */}
-          {state === 'success' && (
-            <div className="text-center">
-              <div className="flex justify-center mb-6">
-                <CheckCircle className="w-12 h-12 text-green-400" />
-              </div>
-              <h1 className="text-3xl font-bold text-white mb-2">Email Verified! ✓</h1>
-              <p className="text-slate-400 mb-6">
-                Your email has been successfully verified. Redirecting to sign in...
-              </p>
-              <div className="mt-6 text-primary-500 text-sm">
-                <p>If not redirected, <a href="/login" className="underline hover:text-primary-400">click here</a> to sign in</p>
-              </div>
+        {/* Verified State */}
+        {status === 'verified' && (
+          <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-lg p-8 text-center">
+            <div className="flex justify-center mb-4">
+              <CheckCircle className="w-12 h-12 text-green-500" />
             </div>
-          )}
-
-          {/* Error State */}
-          {state === 'error' && (
-            <div>
-              <div className="flex justify-center mb-6">
-                <AlertCircle className="w-12 h-12 text-red-400" />
-              </div>
-              <h1 className="text-3xl font-bold text-white mb-2">Verification Failed</h1>
-
-              <div className="mb-6 p-4 bg-red-900/30 border border-red-700 rounded text-red-200 text-sm">
-                {error}
-              </div>
-
-              <div className="bg-slate-800 rounded-lg p-6 mb-6">
-                <h2 className="text-lg font-semibold text-white mb-4">Resend Verification Email</h2>
-                <form onSubmit={handleResendEmail} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Email Address</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
-                      <input
-                        type="email"
-                        value={resendEmail}
-                        onChange={(e) => setResendEmail(e.target.value)}
-                        placeholder="you@example.com"
-                        className="w-full pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-primary-500"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={resendLoading}
-                    className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-medium py-2 rounded-lg transition"
-                  >
-                    {resendLoading ? 'Sending...' : 'Resend Email'}
-                  </button>
-                </form>
-
-                {resendMessage && (
-                  <div className="mt-4 p-3 bg-green-900/30 border border-green-700 rounded text-green-200 text-sm">
-                    {resendMessage}
-                  </div>
-                )}
-              </div>
-
-              <div className="text-center">
-                <p className="text-slate-400 text-sm">
-                  Remember to check your spam folder if you don't see the email
-                </p>
-              </div>
-
-              <div className="mt-6 text-center">
-                <a href="/login" className="text-primary-500 hover:text-primary-400 font-medium">
-                  ← Back to Sign In
-                </a>
-              </div>
+            <h2 className="text-xl font-bold text-white mb-2">Email Verified!</h2>
+            <p className="text-slate-300 mb-4">
+              Your email has been successfully verified. Redirecting to login...
+            </p>
+            <div className="flex justify-center">
+              <div className="animate-spin h-4 w-4 border-2 border-green-500 border-t-transparent rounded-full"></div>
             </div>
-          )}
+          </div>
+        )}
+
+        {/* Error State */}
+        {status === 'error' && (
+          <div className="bg-gradient-to-br from-red-500/20 to-rose-500/20 border border-red-500/30 rounded-lg p-8">
+            <div className="flex justify-center mb-4">
+              <AlertCircle className="w-12 h-12 text-red-500" />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2 text-center">Verification Error</h2>
+            <p className="text-slate-300 mb-6 text-center">{errorMessage}</p>
+
+            <div className="space-y-3">
+              {canResend ? (
+                <button
+                  onClick={handleResend}
+                  className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 rounded-lg transition"
+                >
+                  Resend Verification Email
+                </button>
+              ) : (
+                <button
+                  disabled
+                  className="w-full bg-slate-700 text-slate-400 font-semibold py-3 rounded-lg cursor-not-allowed"
+                >
+                  Resend in {resendCountdown}s
+                </button>
+              )}
+
+              <a
+                href="/login"
+                className="block text-center text-primary-500 hover:text-primary-400 font-semibold py-3 transition"
+              >
+                Back to Login
+              </a>
+            </div>
+          </div>
+        )}
+
+        {/* Help Text */}
+        <div className="mt-8 text-center text-sm text-slate-400">
+          <p>
+            Check your spam folder if you don't see the verification email.
+          </p>
         </div>
       </div>
     </div>

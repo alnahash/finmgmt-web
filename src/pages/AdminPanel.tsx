@@ -143,10 +143,17 @@ export default function AdminPanel() {
             body: JSON.stringify({ userId }),
           }
         )
-        console.log('Auth delete response:', authDeleteResponse.status)
+
+        const responseData = await authDeleteResponse.json()
+        console.log('Auth delete response:', authDeleteResponse.status, responseData)
+
+        if (!authDeleteResponse.ok) {
+          console.error('Edge function error:', responseData)
+          console.error('User may still be able to login! Status:', authDeleteResponse.status)
+        }
       } catch (authError) {
-        console.warn('Edge function delete failed (non-critical):', authError)
-        // Non-critical - database deletion already succeeded
+        console.error('Edge function delete failed:', authError)
+        console.error('⚠️ CRITICAL: User authentication deletion failed! User may still be able to login!')
       }
 
       // Remove user from local state immediately

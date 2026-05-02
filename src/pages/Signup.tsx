@@ -191,6 +191,9 @@ export default function Signup() {
           },
         ])
         if (profileError) throw profileError
+
+        // Store email in localStorage for email verification page (resend functionality)
+        localStorage.setItem('pending_verification_email', email)
       }
 
       // Show verification message

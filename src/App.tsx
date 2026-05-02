@@ -1,11 +1,12 @@
 import { useEffect, useState, createContext } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import type { User } from '@supabase/supabase-js'
 
 // Pages
 import Login from './pages/Login'
 import Signup from './pages/Signup'
+import EmailVerification from './pages/EmailVerification'
 import Dashboard from './pages/Dashboard'
 import Transactions from './pages/Transactions'
 import Categories from './pages/Categories'
@@ -43,12 +44,16 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [theme, setThemeState] = useState<'light' | 'dark'>('dark')
+  const [onboarded, setOnboarded] = useState<boolean | null>(null)
 
   useEffect(() => {
     // Check if user is logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user || null)
       checkAdmin(session?.user?.email, session?.user?.id)
+      if (session?.user?.id) {
+        checkOnboardingStatus(session.user.id)
+      }
       setLoading(false)
     })
 
@@ -60,6 +65,9 @@ function App() {
       checkAdmin(session?.user?.email, session?.user?.id)
       if (session?.user) {
         fetchAndSetTheme(session.user.id)
+        checkOnboardingStatus(session.user.id)
+      } else {
+        setOnboarded(null)
       }
       if (event === 'SIGNED_IN' && session?.user) {
         supabase.from('login_events').insert({
@@ -71,6 +79,22 @@ function App() {
 
     return () => subscription?.unsubscribe()
   }, [])
+
+  const checkOnboardingStatus = async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('onboarded')
+        .eq('id', userId)
+        .single()
+
+      console.log('Onboarding status:', data?.onboarded)
+      setOnboarded(data?.onboarded || false)
+    } catch (error) {
+      console.error('Error checking onboarding status:', error)
+      setOnboarded(false)
+    }
+  }
 
   const checkAdmin = async (email?: string, userId?: string) => {
     // First check environment variable (backward compatibility)
@@ -132,7 +156,7 @@ function App() {
     }
   }, [theme])
 
-  if (loading) {
+  if (loading || (user && onboarded === null)) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-950">
         <div className="text-center">
@@ -152,13 +176,17 @@ function App() {
             <>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/auth/confirm" element={<EmailVerification />} />
               <Route path="*" element={<Navigate to="/login" />} />
             </>
           ) : (
-            // User logged in - allow full app access
+            // User logged in - check onboarding status
             <>
               <Route path="/onboarding" element={<Onboarding />} />
-              <Route path="/" element={<Dashboard />} />
+              <Route
+                path="/"
+                element={onboarded === false ? <Navigate to="/onboarding" /> : <Dashboard />}
+              />
               <Route path="/transactions" element={<Transactions />} />
               <Route path="/categories" element={<Categories />} />
               <Route path="/budgets" element={<Budgets />} />
