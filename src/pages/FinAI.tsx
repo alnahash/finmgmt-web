@@ -35,7 +35,8 @@ interface Transaction {
 }
 
 interface UserProfile {
-  full_name: string
+  full_name: string | null
+  email: string | null
   currency: string
   monthly_budget: number
   month_start_day: number
@@ -127,7 +128,7 @@ export default function FinAI() {
       // Fetch profile
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('full_name, currency, monthly_budget, month_start_day')
+        .select('full_name, email, currency, monthly_budget, month_start_day')
         .eq('id', user.id)
         .single()
 
@@ -322,6 +323,10 @@ export default function FinAI() {
       const allTimeSpent = sumAmount(allTimeExpenses)
 
       const financialContext = `
+User Profile:
+- Name: ${profile.full_name || 'Friend'}
+- Email: ${profile.email || 'Not provided'}
+
 User's Financial Summary:
 - Currency: ${profile.currency}
 - Monthly Budget: ${formatCurrency(profile.monthly_budget, profile.currency)}
