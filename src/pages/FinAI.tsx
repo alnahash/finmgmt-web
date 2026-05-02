@@ -63,6 +63,7 @@ export default function FinAI() {
   const [dataLoaded, setDataLoaded] = useState(false)
   const [usingGroq, setUsingGroq] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY
 
@@ -342,6 +343,11 @@ Provide a helpful, concise, and friendly response. Use the currency symbol (${pr
     }
     setMessages((prev) => [...prev, assistantMsg])
     setLoading(false)
+
+    // Auto-focus input for better UX
+    setTimeout(() => {
+      inputRef.current?.focus()
+    }, 100)
   }
 
   const handleSuggestion = (question: string) => {
@@ -539,6 +545,7 @@ Provide a helpful, concise, and friendly response. Use the currency symbol (${pr
         {/* Input */}
         <div className="flex space-x-2">
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
