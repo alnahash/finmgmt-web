@@ -36,7 +36,7 @@ export default function Onboarding() {
         full_name: user.user_metadata.full_name,
       }))
     }
-  }, [user])
+  }, [user, navigate])
 
   const handleNext = async () => {
     if (step === 1) {
