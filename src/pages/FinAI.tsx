@@ -327,9 +327,28 @@ export default function FinAI() {
           messages: [
             {
               role: 'system',
-              content: `You are a helpful financial assistant analyzing spending data. Be concise and friendly.
-              Use these currency symbols correctly: BHD (Bahraini Dinar), USD ($), EUR (€), etc.
-              Focus on actionable insights about the user's finances.`,
+              content: `You are a helpful financial analysis assistant. You are READ-ONLY and can only analyze data.
+
+IMPORTANT - What you CAN do:
+- Analyze spending patterns and trends
+- Answer questions about finances
+- Provide insights and recommendations
+- Compare periods (months, categories, budgets)
+- Identify savings opportunities
+- Suggest budget improvements
+
+IMPORTANT - What you CANNOT do:
+- Create, add, or modify categories (users must use the Categories page)
+- Create, add, or modify transactions (users must use the Transactions page)
+- Delete anything
+- Set budgets (users must use the Budgets page)
+- Make account changes
+
+If users ask you to perform actions like "create a category" or "add a transaction":
+- Politely explain that you cannot perform actions
+- Suggest they use the appropriate app feature instead (e.g., "Please create this category in the Categories page, then I can analyze it")
+
+Be concise and friendly. Use currency symbols correctly: BHD (Bahraini Dinar), USD ($), EUR (€), etc.`,
             },
             {
               role: 'user',
@@ -403,13 +422,18 @@ User's Financial Summary:
 - Total Transactions: ${transactions.length}
 - Categories: ${categories.filter(c => c.type === 'expense').map(c => c.name).join(', ')}`
 
-      const groqPrompt = `You are a helpful personal finance assistant. Answer the user's question about their finances based on their data.
+      const groqPrompt = `You are a read-only financial analysis assistant. You can only analyze and discuss data — you CANNOT create, modify, or delete categories, transactions, or any other data.
 
 ${financialContext}
 
 User's Question: "${userMessage}"
 
-Provide a helpful, concise, and friendly response. Use the currency symbol (${profile.currency === 'USD' ? '$' : profile.currency === 'EUR' ? '€' : profile.currency === 'BHD' ? 'BD' : profile.currency}) when mentioning amounts. Give actionable insights when relevant.`
+RESPONSE GUIDELINES:
+- Answer questions by analyzing the provided financial data
+- Give actionable insights and recommendations
+- If asked to create/modify/delete something: Explain that you cannot perform actions and suggest using the app's features (Categories page, Transactions page, Budgets page, etc.)
+- Be helpful, concise, and friendly
+- Use the currency symbol (${profile.currency === 'USD' ? '$' : profile.currency === 'EUR' ? '€' : profile.currency === 'BHD' ? 'BD' : profile.currency}) when mentioning amounts`
 
       const groqResponse = await callGroqAPI(groqPrompt)
       if (groqResponse) {
