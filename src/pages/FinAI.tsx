@@ -1188,19 +1188,19 @@ User Profile:
 User's Financial Summary:
 - Currency: ${profile.currency}
 - Monthly Budget: ${formatCurrency(profile.monthly_budget, profile.currency)}
-- Budget Used: ${budgetUsedPercent.toFixed(1)}% (${formatCurrency(budgetRemaining, profile.currency)} remaining)
+- Budget Used: ${budgetUsedPercent.toFixed(1)}% (${formatCurrency(budgetRemaining, profile.currency)} ${budgetRemaining >= 0 ? 'remaining' : 'OVER'})
 
 Current Period (This Month):
 - Earned: ${formatCurrency(currentEarned, profile.currency)}
 - Spent: ${formatCurrency(currentSpent, profile.currency)}
 - Saved: ${formatCurrency(currentEarned - currentSpent, profile.currency)}
-- Savings Rate: ${savingsRate.toFixed(1)}%
+- Savings Rate: ${savingsRate.toFixed(1)}% (${savingsRate >= 30 ? '✅ Excellent' : savingsRate >= 20 ? '✅ Good' : savingsRate >= 10 ? '⚠️ Fair' : '❌ Needs attention'})
 - Expense Ratio: ${expenseRatio.toFixed(1)}%
 - Transactions: ${currentExpenses.length} expense(s), ${currentIncome.length} income
 
 Previous Period (Last Month):
 - Spent: ${formatCurrency(previousSpent, profile.currency)}
-- Change: ${previousSpent > 0 ? ((currentSpent - previousSpent) / previousSpent * 100).toFixed(1) : 0}%
+- Change: ${previousSpent > 0 ? ((currentSpent - previousSpent) / previousSpent * 100).toFixed(1) : 0}% ${previousSpent > 0 && currentSpent > previousSpent ? '📈 (Higher)' : previousSpent > 0 && currentSpent < previousSpent ? '📉 (Lower)' : '(New data)'}
 
 Top 3 Spending Categories This Month (with change):
 ${top3Text}
@@ -1242,10 +1242,15 @@ ${anomalyText}
 
 ${scenario.isScenario ? `Scenario Impact Analysis:\n${scenarioImpactText}\n` : ''}
 
-Overall:
+Year-to-Date:
 - All-Time Spent: ${formatCurrency(allTimeSpent, profile.currency)}
 - Total Transactions: ${transactions.length}
-- Expense Categories: ${categories.filter(c => c.type === 'expense').map(c => c.name).join(', ')}`
+- Expense Categories: ${categories.filter(c => c.type === 'expense').map(c => c.name).join(', ')}
+
+KEY INSIGHTS & ALERTS (Improvement C - Better Prompt Engineering):
+- Budget Status: ${budgetRemaining < 0 ? '🔴 CRITICAL - Over budget by ' + formatCurrency(Math.abs(budgetRemaining), profile.currency) : budgetRemaining < profile.monthly_budget * 0.1 ? '🟡 WARNING - Less than 10% budget remaining' : '🟢 On track'}
+- Savings Target: ${savingsRate >= 30 ? '✅ Exceeding 30% savings rate' : savingsRate >= 20 ? '✅ Meeting 20%+ savings rate' : '⚠️ Below recommended 20% savings rate'}
+- Spending Trend: ${previousSpent > 0 && currentSpent > previousSpent ? `📈 Spending increased by ${(((currentSpent - previousSpent) / previousSpent) * 100).toFixed(1)}% vs last month` : previousSpent > 0 && currentSpent < previousSpent ? `📉 Spending decreased by ${(((previousSpent - currentSpent) / previousSpent) * 100).toFixed(1)}% vs last month` : 'First month of data'}`
 
       // Phase 2: Build conversation history context
       // Get last 10 messages to maintain conversation context (excluding current message)
@@ -1347,18 +1352,90 @@ If users ask you to perform actions like "create a category" or "add a transacti
 FINANCIAL DATA:
 ${financialContext}
 
-RESPONSE FORMATTING:
-- Be concise and friendly
+RESPONSE FORMATTING (Enhanced - Improvement C):
+- Be concise, friendly, and actionable
 - Use currency symbols correctly: BHD (Bahraini Dinar), USD ($), EUR (€), etc.
-- Format spending lists as tables with emoji icons:
-  🍽️  Dining:        BHD 450.00 (↑15%)
-  🚗 Transport:     BHD 320.00 (→ same)
-  🎬 Entertainment: BHD 200.00 (↓5%)
-- Use ↑ for increases, ↓ for decreases, → for no change
-- Include confidence levels for predictions: "Based on X months of data, I'm 85% confident that..."
-- Use bullet points for lists
-- Highlight key insights and actionable recommendations
-- Use 🔴 🟡 🟢 emojis for budget status indicators`
+
+MARKDOWN STRUCTURE:
+- Use ## headers for major sections (e.g., ## Budget Analysis, ## Spending Trends)
+- Use ### subheaders for detailed breakdowns
+- Use --- or ___ for dividers between sections
+- Format tables with pipe-separated cells for organized data display
+- Use code blocks (```data) for complex financial tables or data
+- Use bullet points for lists of items or simple recommendations
+- Use **bold** for key numbers and metrics
+- Use *italic* for context or explanations
+
+TABLE FORMATTING:
+- Create tables for comparing categories, periods, or budget status
+- Header row format: | Category | Amount | Status |
+- Include separator row: | --- | --- | --- |
+- Example:
+  | Category | This Month | Last Month | Change |
+  | --- | --- | --- | --- |
+  | Dining | BHD 450 | BHD 400 | ↑12.5% |
+
+SPENDING INSIGHTS:
+- Always include confidence levels: "Based on X months of data, I'm 85% confident that..."
+- When showing trends, use ↑ for increases, ↓ for decreases, → for no change
+- Highlight top 3 spending categories first
+- Explain the "why" behind patterns when possible (paydays, seasonal, habits)
+- Use 🔴 🟡 🟢 emojis for budget status
+- Use 📈 for accelerating categories and 📉 for decreasing categories
+
+KEY RECOMMENDATIONS STYLE:
+- Start with the highest-impact recommendation
+- Use specific numbers: "Save BHD 600/year by reducing dining by 20%"
+- Make recommendations realistic and achievable
+- Tie savings to user's goals or context
+- Suggest small wins alongside major opportunities
+- Use comparison context: "This is X% less than last month"
+
+CONVERSATION STYLE:
+- Reference specific previous messages when available
+- Build on earlier analysis rather than repeating information
+- Ask clarifying questions when user's intent is ambiguous
+- Provide follow-up suggestions based on conversation context
+- If user asks about something unrelated to finances, politely redirect
+
+MARKDOWN EXAMPLES:
+Example 1 - Budget Analysis with Table:
+## Budget Analysis
+
+Your budget status is strong this month:
+
+| Category | Budget | Spent | Status |
+| --- | --- | --- | --- |
+| Dining | BHD 300 | BHD 250 | 🟢 OK |
+| Transport | BHD 200 | BHD 210 | 🟡 WARNING |
+| Entertainment | BHD 100 | BHD 150 | 🔴 OVER |
+
+**Action:** Reduce entertainment spending by BHD 50 to stay on track.
+
+Example 2 - Spending Trends:
+## Spending Trends
+
+📈 Your spending is increasing:
+
+- **Dining:** BHD 400 → BHD 450 (+12.5%)
+- **Transport:** BHD 200 → BHD 220 (+10%)
+- **Entertainment:** Stable at BHD 100
+
+**Forecast:** Next month likely BHD 2,300 (+8% vs this month)
+
+Example 3 - Key Recommendations:
+## Recommendations
+
+### Highest Impact Opportunity
+Reduce dining by 20% → Save BHD 2,400/year
+
+### Quick Wins
+- Cancel unused subscriptions (estimated BHD 50-100/month)
+- Use public transport 2x/week (save BHD 30/month)
+
+---
+
+**Summary:** Focus on dining and transportation for maximum savings impact.`
 
       const groqResponse = await callGroqAPI(systemPrompt, conversationHistoryForGroq)
       if (groqResponse) {
