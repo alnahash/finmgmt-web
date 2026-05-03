@@ -1742,10 +1742,10 @@ Reduce dining by 20% → Save BHD 2,400/year
           </div>
         </div>
 
-        {/* Quick Stats Card - Phase 1 Enhanced (Improvement B) */}
+        {/* Quick Stats Card - Phase 1 Enhanced (Improvement B) - Improvement D: Polish with animations */}
         {dataLoaded && profile && (
-          <div className="bg-gradient-to-r from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-4 mb-4">
-            <div className="grid grid-cols-3 gap-4">
+          <div className="bg-gradient-to-r from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-3 md:p-4 mb-4 shadow-lg hover:shadow-xl transition duration-300 animate-in fade-in slide-in-from-top-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
               {/* Top Category with Comparison */}
               <div className="hover:bg-slate-700/30 p-2 rounded-md transition">
                 <div className="text-xs text-slate-400 mb-1 font-medium">TOP CATEGORY</div>
@@ -1858,9 +1858,9 @@ Reduce dining by 20% → Save BHD 2,400/year
           </div>
         )}
 
-        {/* Stats Bar */}
+        {/* Stats Bar - Improvement D: Enhanced responsive design */}
         {dataLoaded && profile && (
-          <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-3 mb-4 animate-in fade-in slide-in-from-bottom-2">
             <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 flex items-center space-x-2">
               <TrendingDown className="w-4 h-4 text-red-400" />
               <div>
@@ -1901,29 +1901,43 @@ Reduce dining by 20% → Save BHD 2,400/year
           </div>
         )}
 
-        {/* Messages */}
-        <div className="flex-1 bg-slate-900 border border-slate-800 rounded-lg overflow-y-auto p-4 mb-4">
+        {/* Messages Container - Improvement D: Enhanced with Animations */}
+        <div className="flex-1 bg-slate-900 border border-slate-800 rounded-lg overflow-y-auto p-3 md:p-4 mb-4 scroll-smooth">
           {messages.length === 0 && !dataLoaded && (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="w-8 h-8 text-primary-500 animate-spin" />
+            <div className="flex items-center justify-center h-full animate-pulse">
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto mb-2" />
+                <p className="text-xs text-slate-400">Loading your financial data...</p>
+              </div>
             </div>
           )}
 
-          <div className="space-y-4">
-            {messages.map((msg) => (
+          {messages.length === 0 && dataLoaded && (
+            <div className="flex items-center justify-center h-full text-center animate-in fade-in duration-500">
+              <div>
+                <Sparkles className="w-12 h-12 text-primary-400 mx-auto mb-3 opacity-50" />
+                <p className="text-slate-300 mb-1">No messages yet</p>
+                <p className="text-xs text-slate-400">Ask me about your spending, budget, or financial goals!</p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3 md:space-y-4">
+            {messages.map((msg, idx) => (
               <div
                 key={msg.id}
                 className={`flex ${
                   msg.role === 'user' ? 'justify-end' : 'justify-start'
-                }`}
+                } animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                style={{ animationDelay: `${idx * 50}ms` }}
               >
                 <div
-                  className={`flex items-start space-x-2 max-w-[85%] ${
+                  className={`flex items-start space-x-2 max-w-[85%] md:max-w-[75%] ${
                     msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
                   }`}
                 >
                   <div
-                    className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                    className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-lg ${
                       msg.role === 'user'
                         ? 'bg-primary-600'
                         : 'bg-gradient-to-br from-primary-500 to-primary-700'
@@ -1937,17 +1951,18 @@ Reduce dining by 20% → Save BHD 2,400/year
                   </div>
                   <div className="flex flex-col">
                     <div
-                      className={`rounded-lg px-4 py-3 text-sm ${
+                      className={`rounded-lg px-3 py-2 md:px-4 md:py-3 text-xs md:text-sm transition-all hover:shadow-lg ${
                         msg.role === 'user'
-                          ? 'bg-primary-600 text-white'
-                          : 'bg-slate-800 text-slate-200 border border-slate-700'
+                          ? 'bg-primary-600 text-white shadow-md hover:bg-primary-700'
+                          : 'bg-slate-800 text-slate-200 border border-slate-700 hover:border-slate-600 hover:bg-slate-800/80'
                       }`}
                     >
                       {renderContent(msg.content)}
                     </div>
                     {msg.role === 'assistant' && msg.isAI && (
-                      <div className="text-xs text-slate-500 mt-1 ml-1">
-                        ⚡ Powered by Groq AI
+                      <div className="text-xs text-slate-500 mt-1 ml-1 flex items-center space-x-1">
+                        <span>⚡</span>
+                        <span>Groq AI</span>
                       </div>
                     )}
                   </div>
@@ -1981,16 +1996,18 @@ Reduce dining by 20% → Save BHD 2,400/year
           </div>
         </div>
 
-        {/* Suggested Questions */}
+        {/* Suggested Questions - Improvement D: Enhanced with better styling */}
         {messages.length <= 1 && dataLoaded && (
-          <div className="mb-4">
-            <p className="text-xs text-slate-400 mb-2">Try asking:</p>
+          <div className="mb-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <p className="text-xs text-slate-400 mb-2 font-medium">💡 Try asking:</p>
             <div className="flex flex-wrap gap-2">
-              {SUGGESTED_QUESTIONS.map((q) => (
+              {SUGGESTED_QUESTIONS.map((q, idx) => (
                 <button
                   key={q}
                   onClick={() => handleSuggestion(q)}
-                  className="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-3 py-1.5 rounded-full transition"
+                  className="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-primary-400 text-slate-300 hover:text-slate-100 px-3 py-1.5 rounded-full transition duration-200 animate-in fade-in"
+                  style={{ animationDelay: `${idx * 50}ms` }}
+                  title={q}
                 >
                   {q}
                 </button>
@@ -1999,8 +2016,8 @@ Reduce dining by 20% → Save BHD 2,400/year
           </div>
         )}
 
-        {/* Input */}
-        <div className="flex space-x-2">
+        {/* Input Area - Improvement D: Enhanced responsive and polish */}
+        <div className="flex gap-2 sm:gap-2">
           <input
             ref={inputRef}
             type="text"
@@ -2009,15 +2026,16 @@ Reduce dining by 20% → Save BHD 2,400/year
             onKeyDown={handleKeyPress}
             placeholder="Ask me about your finances..."
             disabled={!dataLoaded || loading}
-            className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-primary-500 disabled:opacity-50"
+            className="flex-1 px-3 md:px-4 py-2 md:py-3 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || loading || !dataLoaded}
-            className="bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg transition flex items-center space-x-2"
+            className="bg-primary-600 hover:bg-primary-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 md:px-6 py-2 md:py-3 rounded-lg transition duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl"
+            title="Send message (Ctrl+Enter)"
           >
             <Send className="w-4 h-4" />
-            <span className="hidden sm:inline">Send</span>
+            <span className="hidden sm:inline text-sm">Send</span>
           </button>
         </div>
       </div>
