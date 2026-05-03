@@ -1382,59 +1382,233 @@ RESPONSE FORMATTING:
     }
   }
 
-  // Render message content with enhanced markdown (bold, lists, tables, emojis)
+  // Enhanced markdown rendering with tables, headers, and better formatting
   const renderContent = (content: string) => {
     const lines = content.split('\n')
-    return lines.map((line, i) => {
+    const elements: JSX.Element[] = []
+    let i = 0
+
+    while (i < lines.length) {
+      const line = lines[i]
       const trimmed = line.trim()
+
+      // Handle section headers (##, ###)
+      if (trimmed.startsWith('## ')) {
+        elements.push(
+          <div key={`header-${i}`} className="mt-4 mb-3">
+            <h2 className="text-lg font-bold text-white">
+              {renderLineContent(trimmed.substring(3))}
+            </h2>
+            <div className="h-1 bg-gradient-to-r from-primary-500 to-transparent rounded-full mt-2" />
+          </div>
+        )
+        i++
+        continue
+      }
+
+      if (trimmed.startsWith('### ')) {
+        elements.push(
+          <div key={`header3-${i}`} className="mt-3 mb-2">
+            <h3 className="text-base font-bold text-primary-400">
+              {renderLineContent(trimmed.substring(4))}
+            </h3>
+          </div>
+        )
+        i++
+        continue
+      }
+
+      // Handle horizontal rules (---)
+      if (trimmed === '---' || trimmed === '___' || trimmed === '***') {
+        elements.push(
+          <div key={`divider-${i}`} className="my-3 h-1 bg-slate-700 rounded-full" />
+        )
+        i++
+        continue
+      }
+
+      // Handle code blocks (```...```)
+      if (trimmed.startsWith('```')) {
+        let codeContent = ''
+        let codeLanguage = trimmed.substring(3).trim()
+        i++
+        while (i < lines.length && !lines[i].trim().startsWith('```')) {
+          codeContent += lines[i] + '\n'
+          i++
+        }
+        elements.push(
+          <div
+            key={`code-${i}`}
+            className="my-3 bg-slate-800 border border-slate-700 rounded-lg p-3 overflow-x-auto"
+          >
+            {codeLanguage && (
+              <div className="text-xs text-slate-400 mb-2">{codeLanguage}</div>
+            )}
+            <pre className="text-sm text-slate-200 font-mono whitespace-pre-wrap break-words">
+              {codeContent.trim()}
+            </pre>
+          </div>
+        )
+        i++
+        continue
+      }
+
+      // Handle table rows (lines with pipes and proper alignment)
+      if (trimmed.includes('|')) {
+        let tableLines = [trimmed]
+        let j = i + 1
+
+        // Collect all consecutive table rows
+        while (j < lines.length && lines[j].trim().includes('|')) {
+          tableLines.push(lines[j].trim())
+          j++
+        }
+
+        // Check if this is a table (has separator row with dashes)
+        const hasSeparator = tableLines.some(row =>
+          row.split('|').every(cell => !cell.trim() || /^-+$/.test(cell.trim()))
+        )
+
+        if (hasSeparator && tableLines.length >= 3) {
+          const rows = tableLines.map(row =>
+            row.split('|').map(cell => cell.trim()).filter(cell => cell)
+          )
+
+          elements.push(
+            <div key={`table-${i}`} className="my-3 overflow-x-auto">
+              <div className="bg-slate-800 border border-slate-700 rounded-lg">
+                {rows.map((row, rowIdx) => {
+                  // Skip separator rows
+                  if (row.every(cell => /^-+$/.test(cell))) return null
+
+                  return (
+                    <div
+                      key={`row-${rowIdx}`}
+                      className={`flex border-b border-slate-700 last:border-b-0 ${
+                        rowIdx === 0 ? 'bg-slate-700/50 font-semibold' : ''
+                      }`}
+                    >
+                      {row.map((cell, cellIdx) => (
+                        <div
+                          key={`cell-${cellIdx}`}
+                          className={`flex-1 px-3 py-2 text-sm ${
+                            rowIdx === 0 ? 'text-primary-300' : 'text-slate-200'
+                          }`}
+                        >
+                          {renderLineContent(cell)}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+          i = j
+          continue
+        }
+      }
 
       // Handle bullet points
       if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
-        return (
-          <div key={i} className="ml-4 text-slate-200">
-            <span className="text-primary-400">•</span> {renderLineContent(trimmed.substring(2))}
+        elements.push(
+          <div key={`bullet-${i}`} className="ml-4 text-slate-200 flex items-start space-x-2">
+            <span className="text-primary-400 flex-shrink-0 mt-1">•</span>
+            <div>{renderLineContent(trimmed.substring(2))}</div>
           </div>
         )
+        i++
+        continue
       }
 
       // Handle numbered lists
       if (/^\d+\.\s/.test(trimmed)) {
-        const content = trimmed.replace(/^\d+\.\s/, '')
-        return (
-          <div key={i} className="ml-4 text-slate-200">
-            {renderLineContent(content)}
+        const match = trimmed.match(/^(\d+)\.\s(.*)/)
+        elements.push(
+          <div key={`number-${i}`} className="ml-4 text-slate-200 flex items-start space-x-2">
+            <span className="text-primary-400 flex-shrink-0 font-semibold">{match?.[1]}.</span>
+            <div>{renderLineContent(match?.[2] || '')}</div>
           </div>
         )
+        i++
+        continue
       }
 
       // Handle empty lines
       if (trimmed === '') {
-        return <div key={i} className="h-2" />
+        elements.push(<div key={`empty-${i}`} className="h-2" />)
+        i++
+        continue
       }
 
-      // Handle regular lines with bold and formatting
-      return (
-        <div key={i} className="text-slate-200">
+      // Handle regular lines
+      elements.push(
+        <div key={`line-${i}`} className="text-slate-200 leading-relaxed">
           {renderLineContent(trimmed)}
         </div>
       )
-    })
+      i++
+    }
+
+    return elements
   }
 
-  // Helper to render line content with bold text, links, and preserved emojis
+  // Enhanced helper to render line content with bold, italic, code, and links
   const renderLineContent = (text: string) => {
-    const parts = text.split(/(\*\*[^*]+\*\*)/g)
-    return parts.map((part, j) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return (
-          <strong key={j} className="text-white font-semibold">
-            {part.slice(2, -2)}
-          </strong>
+    const parts: JSX.Element[] = []
+    let lastIndex = 0
+
+    // Handle **bold**, *italic*, and `code`
+    const regex = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g
+    let match
+
+    while ((match = regex.exec(text)) !== null) {
+      // Add text before match
+      if (match.index > lastIndex) {
+        parts.push(
+          <span key={`text-${lastIndex}`}>
+            {text.substring(lastIndex, match.index)}
+          </span>
         )
       }
-      // Preserve emojis and numbers in currency formatting
-      return <span key={j}>{part}</span>
-    })
+
+      // Add formatted match
+      if (match[0].startsWith('**') && match[0].endsWith('**')) {
+        parts.push(
+          <strong key={`bold-${match.index}`} className="text-white font-semibold">
+            {match[0].slice(2, -2)}
+          </strong>
+        )
+      } else if (match[0].startsWith('*') && match[0].endsWith('*')) {
+        parts.push(
+          <em key={`italic-${match.index}`} className="text-slate-300 italic">
+            {match[0].slice(1, -1)}
+          </em>
+        )
+      } else if (match[0].startsWith('`') && match[0].endsWith('`')) {
+        parts.push(
+          <code
+            key={`code-${match.index}`}
+            className="bg-slate-800 text-primary-300 px-1.5 py-0.5 rounded text-xs font-mono"
+          >
+            {match[0].slice(1, -1)}
+          </code>
+        )
+      }
+
+      lastIndex = match.index + match[0].length
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(
+        <span key={`text-${lastIndex}`}>
+          {text.substring(lastIndex)}
+        </span>
+      )
+    }
+
+    return parts.length > 0 ? parts : <span>{text}</span>
   }
 
   return (
