@@ -169,7 +169,7 @@ export default function Onboarding() {
     setLoading(true)
 
     try {
-      // Update profile
+      // Step 1: Update profile (must be first to set onboarded flag)
       await supabase.from('profiles').upsert([
         {
           id: user.id,
@@ -181,7 +181,7 @@ export default function Onboarding() {
         },
       ])
 
-      // Create selected categories
+      // Step 2: Create selected categories
       const selectedCats = selectedCategories.filter((cat) => cat.selected)
       const categoryData = selectedCats.map((cat) => ({
         user_id: user.id,
@@ -197,49 +197,57 @@ export default function Onboarding() {
         .insert(categoryData)
         .select()
 
-      // Create budgets for categories
-      if (insertedCategories && categoryBudgets.length > 0) {
-        const now = new Date()
-        const budgetData = categoryBudgets
-          .filter((cb) => cb.amount > 0)
-          .map((cb) => {
-            const category = insertedCategories.find((cat) => cat.name === cb.categoryName)
-            return {
-              user_id: user.id,
-              category_id: category?.id,
-              amount: cb.amount,
-              month: now.getMonth() + 1,
-              year: now.getFullYear(),
-            }
-          })
+      // Step 3: Create budgets and transaction in parallel (both depend on insertedCategories)
+      const now = new Date()
 
-        if (budgetData.length > 0) {
-          await supabase.from('budgets').insert(budgetData)
+      const createBudgetsPromise = (async () => {
+        if (insertedCategories && categoryBudgets.length > 0) {
+          const budgetData = categoryBudgets
+            .filter((cb) => cb.amount > 0)
+            .map((cb) => {
+              const category = insertedCategories.find((cat) => cat.name === cb.categoryName)
+              return {
+                user_id: user.id,
+                category_id: category?.id,
+                amount: cb.amount,
+                month: now.getMonth() + 1,
+                year: now.getFullYear(),
+              }
+            })
+
+          if (budgetData.length > 0) {
+            return supabase.from('budgets').insert(budgetData)
+          }
         }
-      }
+        return Promise.resolve()
+      })()
 
-      // Create first transaction (optional)
-      if (firstTransaction.amount > 0 && firstTransaction.category && insertedCategories) {
-        const category = insertedCategories.find((cat) => cat.name === firstTransaction.category)
-        if (category) {
-          const now = new Date()
-          await supabase.from('transactions').insert([
-            {
-              user_id: user.id,
-              category_id: category.id,
-              amount: firstTransaction.amount,
-              description: firstTransaction.description || 'First transaction',
-              transaction_date: now.toISOString().split('T')[0],
-            },
-          ])
+      const createTransactionPromise = (async () => {
+        if (firstTransaction.amount > 0 && firstTransaction.category && insertedCategories) {
+          const category = insertedCategories.find((cat) => cat.name === firstTransaction.category)
+          if (category) {
+            return supabase.from('transactions').insert([
+              {
+                user_id: user.id,
+                category_id: category.id,
+                amount: firstTransaction.amount,
+                description: firstTransaction.description || 'First transaction',
+                transaction_date: now.toISOString().split('T')[0],
+              },
+            ])
+          }
         }
-      }
+        return Promise.resolve()
+      })()
 
+      // Wait for both operations to complete in parallel
+      await Promise.all([createBudgetsPromise, createTransactionPromise])
+
+      // Navigate to dashboard after all operations complete
       navigate('/')
     } catch (error) {
       console.error('Error completing onboarding:', error)
       alert('Error completing onboarding. Please try again.')
-    } finally {
       setLoading(false)
     }
   }
@@ -479,6 +487,15 @@ export default function Onboarding() {
           {/* Step 6: Add First Transaction */}
           {step === 6 && (
             <div>
+              {loading && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                  <div className="bg-slate-900 border border-slate-700 rounded-lg p-8 text-center">
+                    <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <h3 className="text-lg font-semibold text-white mb-2">Setting up your account...</h3>
+                    <p className="text-slate-400 text-sm">Creating your categories, budgets, and first transaction</p>
+                  </div>
+                </div>
+              )}
               <h2 className="text-2xl font-bold text-white mb-2">Add Your First Transaction</h2>
               <p className="text-slate-400 mb-8">Start tracking your spending</p>
               <div className="space-y-6 mb-8">
