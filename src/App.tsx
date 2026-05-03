@@ -82,17 +82,35 @@ function App() {
 
   const checkOnboardingStatus = async (userId: string) => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('onboarded')
         .eq('id', userId)
         .single()
 
-      console.log('Onboarding status:', data?.onboarded)
-      setOnboarded(data?.onboarded || false)
+      // If profile doesn't exist (user was deleted), sign out the user
+      if (error?.code === 'PGRST116') {
+        console.log('Profile not found - user may have been deleted. Signing out...')
+        await supabase.auth.signOut()
+        return
+      }
+
+      if (error) throw error
+
+      const onboardedStatus = data?.onboarded || false
+      console.log('Onboarding status:', onboardedStatus)
+
+      // Only update state if the value has changed to prevent unnecessary re-renders
+      setOnboarded((prevStatus) => {
+        if (prevStatus !== onboardedStatus) {
+          return onboardedStatus
+        }
+        return prevStatus
+      })
     } catch (error) {
       console.error('Error checking onboarding status:', error)
-      setOnboarded(false)
+      // If there's an error, sign out to prevent being stuck in onboarding
+      await supabase.auth.signOut()
     }
   }
 
@@ -179,8 +197,14 @@ function App() {
               <Route path="/auth/confirm" element={<EmailVerification />} />
               <Route path="*" element={<Navigate to="/login" />} />
             </>
+          ) : !user.email_confirmed_at ? (
+            // User logged in but email not verified - require email verification first
+            <>
+              <Route path="/auth/confirm" element={<EmailVerification />} />
+              <Route path="*" element={<Navigate to="/auth/confirm" />} />
+            </>
           ) : (
-            // User logged in - check onboarding status
+            // User logged in and email verified - check onboarding status
             <>
               <Route path="/onboarding" element={<Onboarding />} />
               <Route

@@ -180,6 +180,12 @@ export default function Signup() {
       if (signupError) throw signupError
 
       const user = data.user
+      console.log('Signup response:', {
+        userId: user?.id,
+        email: user?.email,
+        email_confirmed_at: user?.email_confirmed_at,
+        emailConfirmed: !!user?.email_confirmed_at,
+      })
       if (user) {
         // Create profile
         const { error: profileError } = await supabase.from('profiles').upsert([

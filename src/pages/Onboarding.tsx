@@ -102,17 +102,48 @@ export default function Onboarding() {
 
   const handleNext = async () => {
     if (step === 1) {
-      if (!formData.full_name) return
+      // Step 1: Full Name is mandatory
+      if (!formData.full_name.trim()) {
+        alert('Please enter your full name')
+        return
+      }
       setStep(2)
     } else if (step === 2) {
+      // Step 2: Currency and Month Start Day are mandatory (should be selected)
+      if (!formData.currency || !formData.month_start_day) {
+        alert('Please select your currency and budget cycle start day')
+        return
+      }
       setStep(3)
     } else if (step === 3) {
+      // Step 3: Monthly Budget is mandatory (must be > 0)
+      if (formData.monthly_budget <= 0) {
+        alert('Please enter a monthly budget amount greater than 0')
+        return
+      }
       setStep(4)
     } else if (step === 4) {
+      // Step 4: At least one category must be selected
+      const selectedCount = selectedCategories.filter(c => c.selected && c.type === 'expense').length
+      if (selectedCount === 0) {
+        alert('Please select at least one expense category to track')
+        return
+      }
       setStep(5)
     } else if (step === 5) {
+      // Step 5: Budget allocation is mandatory (must have at least one category with budget > 0)
+      const hasAllocatedBudget = categoryBudgets.some(cb => cb.amount > 0)
+      if (!hasAllocatedBudget) {
+        alert('Please allocate budget to at least one category')
+        return
+      }
       setStep(6)
     } else if (step === 6) {
+      // Step 6: First transaction is mandatory (category AND amount required)
+      if (!firstTransaction.category || firstTransaction.amount <= 0) {
+        alert('Please select a category and enter an amount for your first transaction')
+        return
+      }
       await completeOnboarding()
     }
   }
@@ -247,7 +278,7 @@ export default function Onboarding() {
               <h2 className="text-2xl font-bold text-white mb-2">Welcome to FinMgmt! 👋</h2>
               <p className="text-slate-400 mb-8">Let's set up your account</p>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Full Name *</label>
                 <input
                   type="text"
                   value={formData.full_name}
@@ -272,10 +303,10 @@ export default function Onboarding() {
           {step === 2 && (
             <div>
               <h2 className="text-2xl font-bold text-white mb-2">Your Preferences</h2>
-              <p className="text-slate-400 mb-8">Customize your experience</p>
+              <p className="text-slate-400 mb-8">Customize your experience (Required)</p>
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Currency</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Currency *</label>
                   <select
                     value={formData.currency}
                     onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
@@ -290,7 +321,7 @@ export default function Onboarding() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Budget Cycle Start Day</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Budget Cycle Start Day *</label>
                   <select
                     value={formData.month_start_day}
                     onChange={(e) => setFormData({ ...formData, month_start_day: parseInt(e.target.value) })}
@@ -324,10 +355,10 @@ export default function Onboarding() {
           {step === 3 && (
             <div>
               <h2 className="text-2xl font-bold text-white mb-2">Monthly Budget</h2>
-              <p className="text-slate-400 mb-8">Set your total spending limit</p>
+              <p className="text-slate-400 mb-8">Set your total spending limit (Required)</p>
               <div className="mb-8">
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Monthly Budget ({formData.currency})
+                  Monthly Budget ({formData.currency}) *
                 </label>
                 <input
                   type="number"
@@ -350,7 +381,8 @@ export default function Onboarding() {
                 </button>
                 <button
                   onClick={handleNext}
-                  className="flex-1 flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 rounded-lg transition"
+                  disabled={formData.monthly_budget <= 0}
+                  className="flex-1 flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 rounded-lg transition"
                 >
                   <span>Continue</span>
                   <ArrowRight className="w-5 h-5" />
@@ -363,7 +395,7 @@ export default function Onboarding() {
           {step === 4 && (
             <div>
               <h2 className="text-2xl font-bold text-white mb-2">Select Categories</h2>
-              <p className="text-slate-400 mb-6">Choose which expense categories you want to track</p>
+              <p className="text-slate-400 mb-6">Choose which expense categories you want to track (Select at least one)</p>
               <div className="space-y-3 max-h-96 overflow-y-auto mb-8">
                 {selectedCategories.map((cat) => (
                   <button
@@ -391,7 +423,8 @@ export default function Onboarding() {
                 </button>
                 <button
                   onClick={handleNext}
-                  className="flex-1 flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 rounded-lg transition"
+                  disabled={selectedCategories.filter(c => c.selected && c.type === 'expense').length === 0}
+                  className="flex-1 flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 rounded-lg transition"
                 >
                   <span>Continue</span>
                   <ArrowRight className="w-5 h-5" />
@@ -404,7 +437,7 @@ export default function Onboarding() {
           {step === 5 && (
             <div>
               <h2 className="text-2xl font-bold text-white mb-2">Budget Per Category</h2>
-              <p className="text-slate-400 mb-6">Allocate your budget across categories</p>
+              <p className="text-slate-400 mb-6">Allocate your budget across categories (Allocate at least one)</p>
               <div className="space-y-4 max-h-96 overflow-y-auto mb-8">
                 {categoryBudgets.map((cb) => (
                   <div key={cb.categoryName}>
@@ -433,7 +466,8 @@ export default function Onboarding() {
                 </button>
                 <button
                   onClick={handleNext}
-                  className="flex-1 flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 rounded-lg transition"
+                  disabled={!categoryBudgets.some(cb => cb.amount > 0)}
+                  className="flex-1 flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 rounded-lg transition"
                 >
                   <span>Continue</span>
                   <ArrowRight className="w-5 h-5" />
@@ -442,14 +476,14 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* Step 6: Add First Transaction (Optional) */}
+          {/* Step 6: Add First Transaction */}
           {step === 6 && (
             <div>
               <h2 className="text-2xl font-bold text-white mb-2">Add Your First Transaction</h2>
-              <p className="text-slate-400 mb-8">Optional - Start tracking your spending</p>
+              <p className="text-slate-400 mb-8">Start tracking your spending</p>
               <div className="space-y-6 mb-8">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Category</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Category *</label>
                   <select
                     value={firstTransaction.category}
                     onChange={(e) => setFirstTransaction({ ...firstTransaction, category: e.target.value })}
@@ -466,7 +500,7 @@ export default function Onboarding() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Amount ({formData.currency})</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Amount ({formData.currency}) *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -487,15 +521,15 @@ export default function Onboarding() {
                   />
                 </div>
               </div>
-              <p className="text-xs text-slate-400 mb-8">You can add transactions later - this step is optional!</p>
+              <p className="text-xs text-slate-400 mb-8">Let's record your first transaction to start tracking your finances</p>
               <div className="flex space-x-2">
                 <button onClick={() => setStep(5)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-lg transition">
                   Back
                 </button>
                 <button
                   onClick={handleNext}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-medium py-2 rounded-lg transition"
+                  disabled={loading || !firstTransaction.category || firstTransaction.amount <= 0}
+                  className="flex-1 flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 rounded-lg transition"
                 >
                   <span>{loading ? 'Setting up...' : 'Complete Setup'}</span>
                   {!loading && <Check className="w-5 h-5" />}
