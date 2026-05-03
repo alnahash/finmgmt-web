@@ -41,6 +41,7 @@ export default function Onboarding() {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [alreadyOnboarded, setAlreadyOnboarded] = useState(false)
   const [formData, setFormData] = useState({
     full_name: '',
     currency: 'USD',
@@ -66,7 +67,7 @@ export default function Onboarding() {
     }
   }, [user, navigate])
 
-  // Redirect to dashboard if already onboarded
+  // Check if already onboarded and show message
   useEffect(() => {
     const checkOnboarded = async () => {
       if (!user) return
@@ -78,7 +79,11 @@ export default function Onboarding() {
           .single()
 
         if (data?.onboarded) {
-          navigate('/')
+          setAlreadyOnboarded(true)
+          // Redirect after 3 seconds
+          setTimeout(() => {
+            navigate('/')
+          }, 3000)
         }
       } catch (error) {
         console.error('Error checking onboarded status:', error)
@@ -250,6 +255,34 @@ export default function Onboarding() {
       alert('Error completing onboarding. Please try again.')
       setLoading(false)
     }
+  }
+
+  // Show already onboarded message
+  if (alreadyOnboarded) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl">
+          <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-xl p-12 text-center">
+            <div className="mb-6">
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-green-900/30 border border-green-700 rounded-full mb-4">
+                <svg className="w-10 h-10 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h2 className="text-3xl font-bold text-white mb-3">Onboarding Complete! 🎉</h2>
+              <p className="text-slate-400 text-lg mb-2">Welcome to FinMgmt, {user?.user_metadata?.full_name || 'friend'}!</p>
+              <p className="text-slate-500 text-sm">Your account is all set up and ready to use.</p>
+            </div>
+            <div className="mt-8 pt-6 border-t border-slate-700">
+              <p className="text-slate-400 text-sm mb-3">Redirecting to dashboard in 3 seconds...</p>
+              <div className="flex justify-center">
+                <div className="animate-spin h-6 w-6 border-2 border-primary-500 border-t-transparent rounded-full"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
