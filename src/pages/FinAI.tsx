@@ -347,6 +347,45 @@ export default function FinAI() {
     return breakdown.length > 0 ? { category: breakdown[0].category, amount: breakdown[0].amount } : null
   }
 
+  const getTopCategoryWithComparison = (): {
+    category: Category
+    amount: number
+    previousAmount: number
+    changePercent: number
+    trendDirection: 'up' | 'down' | 'neutral'
+  } | null => {
+    const top = getTopCategoryThisMonth()
+    if (!top) return null
+
+    const previousPeriod = getPreviousPeriod()
+    const previousExpenses = getTransactionsInRange(
+      previousPeriod.startDate,
+      previousPeriod.endDate,
+      'expense'
+    )
+    const previousBreakdown = getCategoryBreakdown(previousExpenses)
+    const previousAmount =
+      previousBreakdown.find((cat) => cat.category.id === top.category.id)?.amount || 0
+
+    const changePercent =
+      previousAmount > 0
+        ? ((top.amount - previousAmount) / previousAmount) * 100
+        : top.amount > 0
+        ? 100
+        : 0
+
+    const trendDirection =
+      top.amount > previousAmount ? 'up' : top.amount < previousAmount ? 'down' : 'neutral'
+
+    return {
+      category: top.category,
+      amount: top.amount,
+      previousAmount,
+      changePercent,
+      trendDirection,
+    }
+  }
+
   const getTop3CategoriesWithChange = (): Array<{
     category: Category
     amount: number
@@ -1626,30 +1665,49 @@ RESPONSE FORMATTING:
           </div>
         </div>
 
-        {/* Quick Stats Card - Phase 1 */}
+        {/* Quick Stats Card - Phase 1 Enhanced (Improvement B) */}
         {dataLoaded && profile && (
           <div className="bg-gradient-to-r from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-4 mb-4">
             <div className="grid grid-cols-3 gap-4">
-              {/* Top Category */}
-              <div>
-                <div className="text-xs text-slate-400 mb-1">Top Category</div>
-                {getTopCategoryThisMonth() ? (
+              {/* Top Category with Comparison */}
+              <div className="hover:bg-slate-700/30 p-2 rounded-md transition">
+                <div className="text-xs text-slate-400 mb-1 font-medium">TOP CATEGORY</div>
+                {getTopCategoryWithComparison() ? (
                   <div>
-                    <div className="text-lg font-semibold text-white">
-                      {getTopCategoryThisMonth()!.category.icon} {getTopCategoryThisMonth()!.category.name}
+                    <div className="text-lg font-semibold text-white flex items-center justify-between mb-1">
+                      <span>
+                        {getTopCategoryWithComparison()!.category.icon} {getTopCategoryWithComparison()!.category.name}
+                      </span>
+                      {getTopCategoryWithComparison()!.trendDirection === 'up' && (
+                        <span className="text-xs text-red-400 flex items-center space-x-0.5">
+                          <TrendingUp className="w-3 h-3" />
+                          {Math.abs(getTopCategoryWithComparison()!.changePercent).toFixed(0)}%
+                        </span>
+                      )}
+                      {getTopCategoryWithComparison()!.trendDirection === 'down' && (
+                        <span className="text-xs text-green-400 flex items-center space-x-0.5">
+                          <TrendingDown className="w-3 h-3" />
+                          {Math.abs(getTopCategoryWithComparison()!.changePercent).toFixed(0)}%
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm text-slate-300">
-                      {formatCurrencyAmount(getTopCategoryThisMonth()!.amount)}
+                      {formatCurrencyAmount(getTopCategoryWithComparison()!.amount)}
                     </div>
+                    {getTopCategoryWithComparison()!.previousAmount > 0 && (
+                      <div className="text-xs text-slate-500 mt-1">
+                        vs {formatCurrencyAmount(getTopCategoryWithComparison()!.previousAmount)} last period
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="text-slate-500">No spending</div>
+                  <div className="text-slate-500 text-sm">No spending</div>
                 )}
               </div>
 
               {/* Budget Status */}
-              <div>
-                <div className="text-xs text-slate-400 mb-1">Budget Status</div>
+              <div className="hover:bg-slate-700/30 p-2 rounded-md transition">
+                <div className="text-xs text-slate-400 mb-1 font-medium">BUDGET STATUS</div>
                 <div className="mb-2">
                   <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
                     <div
@@ -1664,33 +1722,60 @@ RESPONSE FORMATTING:
                     ></div>
                   </div>
                 </div>
-                <div className="text-sm text-white">
-                  {calculateBudgetUsedPercent().toFixed(0)}% • {formatCurrencyAmount(calculateBudgetRemaining())} left
+                <div className="text-sm font-semibold text-white">
+                  {calculateBudgetUsedPercent().toFixed(0)}%
+                </div>
+                <div className={`text-xs mt-1 ${
+                  calculateBudgetRemaining() < 0
+                    ? 'text-red-400 font-medium'
+                    : calculateBudgetRemaining() < profile.monthly_budget * 0.1
+                    ? 'text-yellow-400'
+                    : 'text-slate-400'
+                }`}>
+                  {calculateBudgetRemaining() >= 0
+                    ? `${formatCurrencyAmount(calculateBudgetRemaining())} left`
+                    : `${formatCurrencyAmount(Math.abs(calculateBudgetRemaining()))} over`}
                 </div>
               </div>
 
-              {/* Savings Rate */}
-              <div>
-                <div className="text-xs text-slate-400 mb-1">Savings Rate</div>
-                <div className="text-lg font-semibold text-green-400">
-                  {calculateSavingsRate(
-                    sumAmount(
-                      getTransactionsInRange(
-                        getCurrentPeriod().startDate,
-                        getCurrentPeriod().endDate,
-                        'income'
-                      )
-                    ),
-                    sumAmount(
-                      getTransactionsInRange(
-                        getCurrentPeriod().startDate,
-                        getCurrentPeriod().endDate,
-                        'expense'
-                      )
+              {/* Savings Rate with Status */}
+              <div className="hover:bg-slate-700/30 p-2 rounded-md transition">
+                <div className="text-xs text-slate-400 mb-1 font-medium">SAVINGS RATE</div>
+                {(() => {
+                  const earned = sumAmount(
+                    getTransactionsInRange(
+                      getCurrentPeriod().startDate,
+                      getCurrentPeriod().endDate,
+                      'income'
                     )
-                  ).toFixed(1)}%
-                </div>
-                <div className="text-xs text-slate-400">of income saved</div>
+                  )
+                  const spent = sumAmount(
+                    getTransactionsInRange(
+                      getCurrentPeriod().startDate,
+                      getCurrentPeriod().endDate,
+                      'expense'
+                    )
+                  )
+                  const rate = calculateSavingsRate(earned, spent)
+                  return (
+                    <>
+                      <div className={`text-lg font-semibold ${
+                        rate >= 30
+                          ? 'text-green-400'
+                          : rate >= 20
+                          ? 'text-emerald-400'
+                          : rate >= 10
+                          ? 'text-yellow-400'
+                          : 'text-red-400'
+                      }`}>
+                        {rate.toFixed(1)}%
+                      </div>
+                      <div className="text-xs text-slate-400 mt-1">
+                        {earned > 0 ? formatCurrencyAmount(earned - spent) : 'No income'} saved
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             </div>
           </div>
