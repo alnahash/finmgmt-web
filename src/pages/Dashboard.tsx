@@ -12,6 +12,7 @@ interface Stats {
   daysTracked: number
   avgPerTransaction: number
   topCategory: string
+  monthlyBudget: number
 }
 
 export default function Dashboard() {
@@ -22,7 +23,8 @@ export default function Dashboard() {
     transactions: 0,
     daysTracked: 0,
     avgPerTransaction: 0,
-    topCategory: 'N/A'
+    topCategory: 'N/A',
+    monthlyBudget: 0
   })
   const [loading, setLoading] = useState(true)
   const [selectedPeriod, setSelectedPeriod] = useState('')
@@ -106,7 +108,8 @@ export default function Dashboard() {
             transactions: 0,
             daysTracked: 0,
             avgPerTransaction: 0,
-            topCategory: 'N/A'
+            topCategory: 'N/A',
+            monthlyBudget: profile?.monthly_budget || 0
           })
           return
         }
@@ -162,7 +165,8 @@ export default function Dashboard() {
           transactions: transactions.length,
           daysTracked,
           avgPerTransaction: transactions.length > 0 ? totalSpent / transactions.length : 0,
-          topCategory
+          topCategory,
+          monthlyBudget
         })
       } catch (error) {
         console.error('Error fetching stats:', error)
@@ -171,6 +175,23 @@ export default function Dashboard() {
 
     fetchStats()
   }, [selectedPeriod, user])
+
+  // Calculate budget status
+  const getBudgetStatus = () => {
+    if (stats.monthlyBudget === 0) {
+      return { percentage: 0, color: 'bg-slate-600', textColor: 'text-slate-400', label: 'No Budget Set' }
+    }
+    const percentage = (stats.totalSpent / stats.monthlyBudget) * 100
+    if (percentage <= 80) {
+      return { percentage, color: 'bg-green-500', textColor: 'text-green-400', label: 'Good' }
+    } else if (percentage <= 99) {
+      return { percentage, color: 'bg-orange-500', textColor: 'text-orange-400', label: 'Warning' }
+    } else {
+      return { percentage, color: 'bg-red-500', textColor: 'text-red-400', label: 'Over Budget' }
+    }
+  }
+
+  const budgetStatus = getBudgetStatus()
 
   return (
     <Layout>
@@ -197,6 +218,48 @@ export default function Dashboard() {
             </select>
           </div>
         </div>
+
+        {/* Budget Progress Bar */}
+        {!loading && selectedPeriod && stats.monthlyBudget > 0 && (
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6 mb-8">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-white mb-2">Budget Status</h2>
+                <p className="text-slate-400 text-sm">
+                  Spent {getCurrencySymbol(currency)}{stats.totalSpent.toFixed(2)} of {getCurrencySymbol(currency)}{stats.monthlyBudget.toFixed(2)}
+                </p>
+              </div>
+              <div className="text-right mt-2 md:mt-0">
+                <p className={`text-3xl font-bold ${budgetStatus.textColor}`}>
+                  {getCurrencySymbol(currency)}{stats.budgetRemaining.toFixed(2)}
+                </p>
+                <p className="text-slate-400 text-sm">Savings remaining</p>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="mb-3">
+              <div className="w-full bg-slate-700 rounded-full h-4 overflow-hidden">
+                <div
+                  className={`h-full ${budgetStatus.color} transition-all duration-500 rounded-full`}
+                  style={{ width: `${Math.min(budgetStatus.percentage, 100)}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Status Label */}
+            <div className="flex justify-between items-center">
+              <span className={`text-sm font-medium ${budgetStatus.textColor}`}>
+                {budgetStatus.percentage.toFixed(1)}% - {budgetStatus.label}
+              </span>
+              {stats.totalSpent > stats.monthlyBudget && (
+                <span className="text-red-400 text-sm font-medium">
+                  Over by {getCurrencySymbol(currency)}{(stats.totalSpent - stats.monthlyBudget).toFixed(2)}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Stats Cards */}
         {loading ? (
