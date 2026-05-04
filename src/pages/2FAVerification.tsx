@@ -110,17 +110,25 @@ export default function TwoFactorVerification() {
       setLoading(true);
       setError('');
 
+      console.log('Attempting 2FA verification with code:', code, 'and factorId:', factorId);
+
       // Verify TOTP code with Supabase
-      await verifyTOTPCode(code, factorId);
+      const result = await verifyTOTPCode(code, factorId);
+      console.log('2FA verification successful:', result);
+
+      // Get refreshed session after MFA verification
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Session after MFA verification:', session?.user?.id, 'factors:', session?.user?.factors);
+
+      // Small delay to ensure auth state updates
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Success - redirect to dashboard
       navigate('/', { replace: true });
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Invalid code. Please try again.'
-      );
+      const errorMsg = err instanceof Error ? err.message : 'Invalid code. Please try again.';
+      console.error('2FA verification failed:', errorMsg, err);
+      setError(errorMsg);
       setAttemptCount((prev) => prev + 1);
       setCode('');
     } finally {

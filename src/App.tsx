@@ -130,9 +130,16 @@ function App() {
       const enabled = await is2FAEnabled(userId)
       console.log('2FA enabled:', enabled)
       setTwoFactorEnabled(enabled)
+
       // If 2FA is not enabled, mark as verified (no need to verify)
       if (!enabled) {
+        console.log('2FA not enabled - marking as verified')
         setTwoFactorVerified(true)
+      } else {
+        // If 2FA is enabled, we start as not verified
+        // The user must complete MFA verification on the 2FA verification page
+        console.log('2FA is enabled - user must verify')
+        setTwoFactorVerified(false)
       }
     } catch (error) {
       console.error('Error checking 2FA status:', error)
