@@ -7,6 +7,8 @@ import type { User } from '@supabase/supabase-js'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import EmailVerification from './pages/EmailVerification'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import TwoFactorSetup from './pages/2FASetup'
 import TwoFactorVerification from './pages/2FAVerification'
 import Dashboard from './pages/Dashboard'
@@ -248,6 +250,8 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/auth/confirm" element={<EmailVerification />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/auth/reset-password" element={<ResetPassword />} />
               <Route path="*" element={<Navigate to="/login" />} />
             </>
           ) : !user.email_confirmed_at ? (
