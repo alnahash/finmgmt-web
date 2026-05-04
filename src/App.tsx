@@ -131,10 +131,20 @@ function App() {
       console.log('2FA enabled:', enabled)
       setTwoFactorEnabled(enabled)
 
+      // Check if 2FA verification was just completed
+      const verified = localStorage.getItem('2fa_verified') === 'true'
+      console.log('2FA verified from localStorage:', verified)
+
       // If 2FA is not enabled, mark as verified (no need to verify)
       if (!enabled) {
         console.log('2FA not enabled - marking as verified')
         setTwoFactorVerified(true)
+        localStorage.removeItem('2fa_verified')
+      } else if (verified) {
+        // User just completed 2FA verification
+        console.log('2FA verification was just completed - marking as verified')
+        setTwoFactorVerified(true)
+        localStorage.removeItem('2fa_verified')
       } else {
         // If 2FA is enabled, we start as not verified
         // The user must complete MFA verification on the 2FA verification page

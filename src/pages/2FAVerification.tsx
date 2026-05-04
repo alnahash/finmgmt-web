@@ -120,6 +120,10 @@ export default function TwoFactorVerification() {
       const { data: { session } } = await supabase.auth.getSession();
       console.log('Session after MFA verification:', session?.user?.id, 'factors:', session?.user?.factors);
 
+      // Mark 2FA as verified in localStorage so App.tsx knows
+      localStorage.setItem('2fa_verified', 'true');
+      console.log('Set localStorage 2fa_verified flag');
+
       // Small delay to ensure auth state updates
       await new Promise(resolve => setTimeout(resolve, 500));
 
