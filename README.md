@@ -189,3 +189,4 @@ Check the Supabase documentation: https://supabase.com/docs
 ---
 
 **Happy Expense Tracking! 🎉**
+# Latest deployment
