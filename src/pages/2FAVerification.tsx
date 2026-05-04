@@ -4,6 +4,7 @@ import { useContext } from 'react';
 import { AuthContext } from '../App';
 import { Shield, ArrowLeft } from 'lucide-react';
 import { verifyTOTPCode, useBackupCode, validateCodeFormat } from '../lib/twoFactor';
+import { supabase } from '../lib/supabase';
 
 type VerificationMode = 'totp' | 'backup';
 
@@ -17,16 +18,67 @@ export default function TwoFactorVerification() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [attemptCount, setAttemptCount] = useState(0);
+  const [factorId, setFactorId] = useState<string>('');
+  const [pageLoading, setPageLoading] = useState(true);
 
-  // Get factorId from location state (passed from login page)
-  const factorId = (location.state as any)?.factorId;
+  // Get factorId from location state or fetch it on mount
+  React.useEffect(() => {
+    const initFactorId = async () => {
+      try {
+        setPageLoading(true);
+
+        // Check if factorId is passed from location state
+        const passedFactorId = (location.state as any)?.factorId;
+        if (passedFactorId) {
+          setFactorId(passedFactorId);
+          setPageLoading(false);
+          return;
+        }
+
+        // Otherwise, fetch enrolled factors
+        const { data, error: err } = await supabase.auth.mfa.listFactors();
+        if (err) {
+          throw new Error(`Failed to get authentication factors: ${err.message}`);
+        }
+
+        // Find TOTP factor
+        const totpFactor = data?.totp?.[0];
+        if (!totpFactor) {
+          throw new Error('No 2FA method found. Please set up 2FA first.');
+        }
+
+        setFactorId(totpFactor.id);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Failed to initialize 2FA verification'
+        );
+      } finally {
+        setPageLoading(false);
+      }
+    };
+
+    initFactorId();
+  }, [location.state]);
+
+  if (pageLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500 mx-auto"></div>
+          <p className="text-slate-400 mt-4">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!factorId) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 flex items-center justify-center px-4">
         <div className="text-center">
           <p className="text-red-400 mb-4">
-            Session error. Please log in again.
+            {error || 'Session error. Please log in again.'}
           </p>
           <button
             onClick={() => navigate('/login')}
