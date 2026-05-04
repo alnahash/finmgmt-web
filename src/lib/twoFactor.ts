@@ -149,8 +149,23 @@ export async function verifyTOTPCode(
       throw new Error('Code must be 6 digits');
     }
 
-    const { data, error } = await supabase.auth.mfa.challengeAndVerify({
+    // First, create a challenge
+    const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
       factorId,
+    });
+
+    if (challengeError) {
+      throw new Error(`Failed to create challenge: ${challengeError.message}`);
+    }
+
+    if (!challengeData?.id) {
+      throw new Error('Failed to get challenge ID');
+    }
+
+    // Then verify with the challenge
+    const { data, error } = await supabase.auth.mfa.verify({
+      factorId,
+      challengeId: challengeData.id,
       code: cleanCode,
     });
 
