@@ -4,6 +4,7 @@ import { useContext } from 'react';
 import { AuthContext } from '../App';
 import { Shield, ArrowLeft } from 'lucide-react';
 import { verifyTOTPCode, useBackupCode, validateCodeFormat } from '../lib/twoFactor';
+import { saveTrustedDevice } from '../lib/deviceTrust';
 import { supabase } from '../lib/supabase';
 
 type VerificationMode = 'totp' | 'backup';
@@ -20,6 +21,7 @@ export default function TwoFactorVerification() {
   const [attemptCount, setAttemptCount] = useState(0);
   const [factorId, setFactorId] = useState<string>('');
   const [pageLoading, setPageLoading] = useState(true);
+  const [rememberDevice, setRememberDevice] = useState(false);
 
   // Get factorId from location state or fetch it on mount
   React.useEffect(() => {
@@ -124,6 +126,12 @@ export default function TwoFactorVerification() {
       localStorage.setItem('2fa_verified', 'true');
       console.log('Set localStorage 2fa_verified flag');
 
+      // If user wants to remember device, save it
+      if (rememberDevice && auth.user?.id) {
+        saveTrustedDevice(auth.user.id);
+        console.log('Device saved as trusted for 7 days');
+      }
+
       // Small delay to ensure auth state updates
       await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -159,6 +167,15 @@ export default function TwoFactorVerification() {
 
       // Use backup code for authentication
       await useBackupCode(auth.user.id, code);
+
+      // Mark 2FA as verified in localStorage
+      localStorage.setItem('2fa_verified', 'true');
+
+      // If user wants to remember device, save it
+      if (rememberDevice) {
+        saveTrustedDevice(auth.user.id);
+        console.log('Device saved as trusted for 7 days');
+      }
 
       // Success - redirect to dashboard
       navigate('/', { replace: true });
@@ -244,6 +261,20 @@ export default function TwoFactorVerification() {
                 />
               </div>
 
+              {/* Remember device checkbox */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="rememberDevice"
+                  checked={rememberDevice}
+                  onChange={(e) => setRememberDevice(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-primary-600 cursor-pointer"
+                />
+                <label htmlFor="rememberDevice" className="text-sm text-slate-300 cursor-pointer">
+                  Remember this device for 7 days
+                </label>
+              </div>
+
               <button
                 type="submit"
                 disabled={loading || code.length !== 6 || attemptCount >= 5}
@@ -311,6 +342,20 @@ export default function TwoFactorVerification() {
                 <p className="text-xs text-slate-400 mt-2">
                   (Format: XXXX-XXXX)
                 </p>
+              </div>
+
+              {/* Remember device checkbox */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="rememberDeviceBackup"
+                  checked={rememberDevice}
+                  onChange={(e) => setRememberDevice(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-primary-600 cursor-pointer"
+                />
+                <label htmlFor="rememberDeviceBackup" className="text-sm text-slate-300 cursor-pointer">
+                  Remember this device for 7 days
+                </label>
               </div>
 
               <button

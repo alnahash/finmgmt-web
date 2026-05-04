@@ -23,6 +23,7 @@ import Insights from './pages/Insights'
 
 // 2FA utilities
 import { is2FAEnabled } from './lib/twoFactor'
+import { isTrustedDevice } from './lib/deviceTrust'
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<{
@@ -135,6 +136,10 @@ function App() {
       const verified = localStorage.getItem('2fa_verified') === 'true'
       console.log('2FA verified from localStorage:', verified)
 
+      // Check if device is trusted
+      const isTrusted = isTrustedDevice(userId)
+      console.log('Device is trusted:', isTrusted)
+
       // If 2FA is not enabled, mark as verified (no need to verify)
       if (!enabled) {
         console.log('2FA not enabled - marking as verified')
@@ -145,6 +150,10 @@ function App() {
         console.log('2FA verification was just completed - marking as verified')
         setTwoFactorVerified(true)
         localStorage.removeItem('2fa_verified')
+      } else if (isTrusted) {
+        // Device is trusted - skip MFA
+        console.log('Device is trusted - skipping 2FA verification')
+        setTwoFactorVerified(true)
       } else {
         // If 2FA is enabled, we start as not verified
         // The user must complete MFA verification on the 2FA verification page

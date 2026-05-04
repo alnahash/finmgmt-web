@@ -2,9 +2,17 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext, ThemeContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { Save, LogOut, Shield, Copy } from 'lucide-react'
+import { Save, LogOut, Shield, Copy, Smartphone, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { is2FAEnabled, getBackupCodes, disable2FA, formatBackupCode } from '../lib/twoFactor'
+import { getTrustedDevice, forgetDevice, getDaysUntilExpiration } from '../lib/deviceTrust'
+
+interface TrustedDevice {
+  fingerprint: string
+  expiresAt: string
+  createdAt: string
+  deviceName?: string
+}
 
 interface Profile {
   id: string
@@ -34,9 +42,14 @@ export default function Settings() {
   const [showBackupCodesPassword, setShowBackupCodesPassword] = useState(false)
   const [copied, setCopied] = useState(false)
 
+  // Device Trust State
+  const [trustedDevice, setTrustedDevice] = useState<TrustedDevice | null>(null)
+  const [daysUntilExpiration, setDaysUntilExpiration] = useState(0)
+
   useEffect(() => {
     fetchProfile()
     load2FAStatus()
+    loadTrustedDevice()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
@@ -164,6 +177,34 @@ export default function Settings() {
     navigator.clipboard.writeText(codesText)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const loadTrustedDevice = () => {
+    if (!user) return
+    try {
+      const device = getTrustedDevice(user.id)
+      if (device) {
+        setTrustedDevice(device)
+        const days = getDaysUntilExpiration(user.id)
+        setDaysUntilExpiration(days)
+      }
+    } catch (error) {
+      console.error('Error loading trusted device:', error)
+    }
+  }
+
+  const handleForgetDevice = () => {
+    if (!user) return
+    try {
+      forgetDevice(user.id)
+      setTrustedDevice(null)
+      setDaysUntilExpiration(0)
+      setMessage('Device forgotten. You will need to verify with 2FA on next login.')
+      setTimeout(() => setMessage(''), 3000)
+    } catch (error) {
+      console.error('Error forgetting device:', error)
+      setMessage('Failed to forget device')
+    }
   }
 
   if (loading) {
@@ -341,7 +382,7 @@ export default function Settings() {
               </div>
 
               {twoFactorEnabled && (
-                <div className="pt-4 border-t border-slate-700">
+                <div className="pt-4 border-t border-slate-700 space-y-4">
                   <button
                     type="button"
                     onClick={handleViewBackupCodes}
@@ -349,6 +390,36 @@ export default function Settings() {
                   >
                     View Backup Codes
                   </button>
+
+                  {/* Trusted Device Management */}
+                  {trustedDevice && (
+                    <div className="mt-4 p-4 bg-slate-700/50 rounded-lg border border-slate-600">
+                      <div className="flex items-start gap-3 mb-3">
+                        <Smartphone className="w-5 h-5 text-primary-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-white font-medium">
+                            {trustedDevice.deviceName || 'Trusted Device'}
+                          </p>
+                          <p className="text-slate-400 text-sm mt-1">
+                            This device is trusted for 2FA verification
+                          </p>
+                          <p className="text-slate-500 text-xs mt-2">
+                            {daysUntilExpiration > 0
+                              ? `${daysUntilExpiration} day${daysUntilExpiration !== 1 ? 's' : ''} remaining`
+                              : 'Trust expired'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleForgetDevice}
+                        className="text-red-400 hover:text-red-300 text-sm font-medium transition flex items-center gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Forget This Device
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
