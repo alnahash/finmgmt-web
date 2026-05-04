@@ -32,8 +32,7 @@ export async function initiate2FASetup(): Promise<MFAEnrollmentResponse> {
 
     // Enroll in MFA (TOTP)
     const { data, error } = await supabase.auth.mfa.enroll({
-      issuerName: 'FinMgmt',
-      friendlyName: `FinMgmt 2FA - ${user.email}`,
+      factorType: 'totp',
     });
 
     if (error) {

@@ -240,7 +240,7 @@ export default function TwoFactorSetup() {
                 <input
                   type="text"
                   inputMode="numeric"
-                  maxLength="6"
+                  maxLength={6}
                   placeholder="000000"
                   value={verificationCode}
                   onChange={(e) => {

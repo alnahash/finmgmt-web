@@ -1250,7 +1250,8 @@ Year-to-Date:
 KEY INSIGHTS & ALERTS (Improvement C - Better Prompt Engineering):
 - Budget Status: ${budgetRemaining < 0 ? '🔴 CRITICAL - Over budget by ' + formatCurrency(Math.abs(budgetRemaining), profile.currency) : budgetRemaining < profile.monthly_budget * 0.1 ? '🟡 WARNING - Less than 10% budget remaining' : '🟢 On track'}
 - Savings Target: ${savingsRate >= 30 ? '✅ Exceeding 30% savings rate' : savingsRate >= 20 ? '✅ Meeting 20%+ savings rate' : '⚠️ Below recommended 20% savings rate'}
-- Spending Trend: ${previousSpent > 0 && currentSpent > previousSpent ? `📈 Spending increased by ${(((currentSpent - previousSpent) / previousSpent) * 100).toFixed(1)}% vs last month` : previousSpent > 0 && currentSpent < previousSpent ? `📉 Spending decreased by ${(((previousSpent - currentSpent) / previousSpent) * 100).toFixed(1)}% vs last month` : 'First month of data'}`
+- Spending Trend: ${previousSpent > 0 && currentSpent > previousSpent ? '📈 Spending increased by ' + (((currentSpent - previousSpent) / previousSpent) * 100).toFixed(1) + '% vs last month' : previousSpent > 0 && currentSpent < previousSpent ? '📉 Spending decreased by ' + (((previousSpent - currentSpent) / previousSpent) * 100).toFixed(1) + '% vs last month' : 'First month of data'}
+`
 
       // Phase 2: Build conversation history context
       // Get last 10 messages to maintain conversation context (excluding current message)
@@ -1361,7 +1362,7 @@ MARKDOWN STRUCTURE:
 - Use ### subheaders for detailed breakdowns
 - Use --- or ___ for dividers between sections
 - Format tables with pipe-separated cells for organized data display
-- Use code blocks (```data) for complex financial tables or data
+- Use code blocks (\`\`\`data) for complex financial tables or data
 - Use bullet points for lists of items or simple recommendations
 - Use **bold** for key numbers and metrics
 - Use *italic* for context or explanations

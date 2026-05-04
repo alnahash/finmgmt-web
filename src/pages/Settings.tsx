@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext, ThemeContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { Save, LogOut, Shield, Copy, Eye, EyeOff } from 'lucide-react'
+import { Save, LogOut, Shield, Copy } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { is2FAEnabled, getBackupCodes, disable2FA, formatBackupCode } from '../lib/twoFactor'
 
@@ -28,12 +28,10 @@ export default function Settings() {
   // 2FA State
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
   const [backupCodes, setBackupCodes] = useState<string[]>([])
-  const [showBackupCodes, setShowBackupCodes] = useState(false)
   const [showDisable2FAModal, setShowDisable2FAModal] = useState(false)
   const [disable2FAPassword, setDisable2FAPassword] = useState('')
   const [disable2FALoading, setDisable2FALoading] = useState(false)
   const [showBackupCodesPassword, setShowBackupCodesPassword] = useState(false)
-  const [backupCodesPassword, setBackupCodesPassword] = useState('')
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -123,7 +121,7 @@ export default function Settings() {
     setDisable2FALoading(true)
     try {
       // Verify password before disabling
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: user.email || '',
         password: disable2FAPassword,
       })
@@ -466,7 +464,6 @@ export default function Settings() {
               <button
                 onClick={() => {
                   setShowBackupCodesPassword(false)
-                  setBackupCodesPassword('')
                   setBackupCodes([])
                 }}
                 className="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition"

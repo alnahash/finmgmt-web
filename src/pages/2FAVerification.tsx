@@ -109,14 +109,6 @@ export default function TwoFactorVerification() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    if (mode === 'totp') {
-      handleVerifyTOTP(e);
-    } else {
-      handleVerifyBackupCode(e);
-    }
-  };
-
   const handleBack = () => {
     navigate('/login', { replace: true });
   };
@@ -175,7 +167,7 @@ export default function TwoFactorVerification() {
                 <input
                   type="text"
                   inputMode="numeric"
-                  maxLength="6"
+                  maxLength={6}
                   placeholder="000000"
                   value={code}
                   onChange={(e) => {
