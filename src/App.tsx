@@ -7,6 +7,8 @@ import type { User } from '@supabase/supabase-js'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import EmailVerification from './pages/EmailVerification'
+import TwoFactorSetup from './pages/2FASetup'
+import TwoFactorVerification from './pages/2FAVerification'
 import Dashboard from './pages/Dashboard'
 import Transactions from './pages/Transactions'
 import Categories from './pages/Categories'
@@ -18,6 +20,9 @@ import AdminPanel from './pages/AdminPanel'
 import Onboarding from './pages/Onboarding'
 import FinAI from './pages/FinAI'
 import Insights from './pages/Insights'
+
+// 2FA utilities
+import { is2FAEnabled } from './lib/twoFactor'
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<{
@@ -45,6 +50,8 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [theme, setThemeState] = useState<'light' | 'dark'>('dark')
   const [onboarded, setOnboarded] = useState<boolean | null>(null)
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState<boolean | null>(null)
+  const [twoFactorVerified, setTwoFactorVerified] = useState(false)
 
   useEffect(() => {
     // Check if user is logged in
@@ -53,6 +60,7 @@ function App() {
       checkAdmin(session?.user?.email, session?.user?.id)
       if (session?.user?.id) {
         checkOnboardingStatus(session.user.id)
+        check2FAStatus(session.user.id)
       }
       setLoading(false)
     })
@@ -66,8 +74,11 @@ function App() {
       if (session?.user) {
         fetchAndSetTheme(session.user.id)
         checkOnboardingStatus(session.user.id)
+        check2FAStatus(session.user.id)
       } else {
         setOnboarded(null)
+        setTwoFactorEnabled(null)
+        setTwoFactorVerified(false)
       }
       if (event === 'SIGNED_IN' && session?.user) {
         supabase.from('login_events').insert({
@@ -111,6 +122,22 @@ function App() {
       console.error('Error checking onboarding status:', error)
       // If there's an error, sign out to prevent being stuck in onboarding
       await supabase.auth.signOut()
+    }
+  }
+
+  const check2FAStatus = async (userId: string) => {
+    try {
+      const enabled = await is2FAEnabled(userId)
+      console.log('2FA enabled:', enabled)
+      setTwoFactorEnabled(enabled)
+      // If 2FA is not enabled, mark as verified (no need to verify)
+      if (!enabled) {
+        setTwoFactorVerified(true)
+      }
+    } catch (error) {
+      console.error('Error checking 2FA status:', error)
+      setTwoFactorEnabled(false)
+      setTwoFactorVerified(true)
     }
   }
 
@@ -174,7 +201,7 @@ function App() {
     }
   }, [theme])
 
-  if (loading || (user && onboarded === null)) {
+  if (loading || (user && onboarded === null) || (user && twoFactorEnabled === null)) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-950">
         <div className="text-center">
@@ -203,9 +230,17 @@ function App() {
               <Route path="/auth/confirm" element={<EmailVerification />} />
               <Route path="*" element={<Navigate to="/auth/confirm" />} />
             </>
-          ) : (
-            // User logged in and email verified - check onboarding status
+          ) : twoFactorEnabled && !twoFactorVerified ? (
+            // User logged in, email verified, but 2FA enabled and not verified
             <>
+              <Route path="/2fa-setup" element={<TwoFactorSetup />} />
+              <Route path="/2fa-verify" element={<TwoFactorVerification />} />
+              <Route path="*" element={<Navigate to="/2fa-verify" />} />
+            </>
+          ) : (
+            // User logged in, email verified, 2FA verified (or not enabled) - check onboarding status
+            <>
+              <Route path="/2fa-setup" element={<TwoFactorSetup />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route
                 path="/"
