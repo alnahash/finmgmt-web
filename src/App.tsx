@@ -258,6 +258,7 @@ function App() {
             // User logged in but email not verified - require email verification first
             <>
               <Route path="/auth/confirm" element={<EmailVerification />} />
+              <Route path="/auth/reset-password" element={<ResetPassword />} />
               <Route path="*" element={<Navigate to="/auth/confirm" />} />
             </>
           ) : twoFactorEnabled && !twoFactorVerified ? (
@@ -265,12 +266,14 @@ function App() {
             <>
               <Route path="/2fa-setup" element={<TwoFactorSetup />} />
               <Route path="/2fa-verify" element={<TwoFactorVerification />} />
+              <Route path="/auth/reset-password" element={<ResetPassword />} />
               <Route path="*" element={<Navigate to="/2fa-verify" />} />
             </>
           ) : (
             // User logged in, email verified, 2FA verified (or not enabled) - check onboarding status
             <>
               <Route path="/2fa-setup" element={<TwoFactorSetup />} />
+              <Route path="/auth/reset-password" element={<ResetPassword />} />
               <Route path="/onboarding" element={<Onboarding />} />
               <Route
                 path="/"
