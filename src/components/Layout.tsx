@@ -53,7 +53,7 @@ export default function Layout({ children }: LayoutProps) {
       <div className={`${sidebarOpen ? 'w-64' : 'w-0'} bg-slate-900 border-r border-slate-800 flex flex-col transition-all duration-300 overflow-hidden`}>
         {/* Logo */}
         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-primary-500">FinMgmt</h1>
+          <img src="/logo/astiq-logo.svg" alt="Astiq" className="h-12" />
           <button
             onClick={toggleSidebar}
             className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition"
