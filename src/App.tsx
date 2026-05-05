@@ -72,7 +72,19 @@ function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user || null)
+      // Only update user state if the user ID actually changed (prevent unnecessary re-renders)
+      setUser((prevUser) => {
+        const newUser = session?.user || null
+        const prevUserId = prevUser?.id
+        const newUserId = newUser?.id
+
+        // Only update if user ID changed
+        if (prevUserId !== newUserId) {
+          return newUser
+        }
+        return prevUser
+      })
+
       checkAdmin(session?.user?.email, session?.user?.id)
       if (session?.user) {
         fetchAndSetTheme(session.user.id)
@@ -233,7 +245,7 @@ function App() {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-950">
         <div className="text-center">
-          <div className="text-4xl font-bold text-primary-500 mb-4">FinMgmt</div>
+          <img src="/logo/astiq-logo.svg" alt="astiq" className="h-24 mx-auto mb-4" />
           <div className="animate-spin h-8 w-8 border-4 border-primary-500 border-t-transparent rounded-full mx-auto"></div>
         </div>
       </div>
