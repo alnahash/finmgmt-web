@@ -2,7 +2,7 @@ import { useContext, useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AuthContext } from '../App'
 import { supabase } from '../lib/supabase'
-import { LayoutDashboard, TrendingDown, Layers, Target, BarChart3, TrendingUp, Settings, LogOut, Shield, Sparkles, Lightbulb, Menu, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, TrendingDown, Layers, Target, BarChart3, TrendingUp, Settings, LogOut, Shield, Sparkles, Lightbulb, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -124,17 +124,6 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto flex flex-col">
-        {/* Sidebar Toggle Button */}
-        <div className="flex items-center px-4 py-3 border-b border-slate-800 bg-slate-900">
-          <button
-            onClick={toggleSidebar}
-            className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition"
-            title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
-          >
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-        </div>
-
         {/* Page Content */}
         <div className="flex-1 overflow-auto">
           {children}
