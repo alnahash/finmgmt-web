@@ -17,12 +17,30 @@ const DEFAULT_CATEGORIES = [
   { name: 'Salary', icon: '💰', color: '#10b981', type: 'income' },
 ]
 
+const DEFAULT_SUBCATEGORIES: { [key: string]: string[] } = {
+  'Food & Dining': ['Coffee Shops', 'Groceries', 'Restaurants', 'Fast Food', 'Delivery'],
+  'Transportation': ['Fuel', 'Public Transport', 'Repairs', 'Parking', 'Uber/Taxi'],
+  'Entertainment': ['Movies', 'Gaming', 'Sports', 'Concerts', 'Hobbies'],
+  'Housing': ['Rent', 'Utilities', 'Internet', 'Maintenance', 'Furniture'],
+  'Clothing': ['Shirts', 'Pants', 'Shoes', 'Accessories', 'Outerwear'],
+  'Health & Fitness': ['Gym', 'Doctor', 'Medicine', 'Dentist', 'Wellness'],
+  'Shopping': ['Electronics', 'Books', 'Home & Garden', 'Toys', 'Gifts'],
+  'Education': ['Tuition', 'Books', 'Courses', 'Training', 'Materials'],
+  'Travel': ['Flights', 'Hotels', 'Food', 'Activities', 'Transport'],
+}
+
 interface Category {
   name: string
   icon: string
   color: string
   type: string
   selected?: boolean
+}
+
+interface SubcategorySelection {
+  categoryName: string
+  selected: string[]
+  custom?: string[]
 }
 
 interface CategoryBudget {
@@ -50,6 +68,13 @@ export default function Onboarding() {
   })
   const [selectedCategories, setSelectedCategories] = useState<(Category & { selected: boolean })[]>(
     DEFAULT_CATEGORIES.map((cat) => ({ ...cat, selected: cat.type === 'expense' ? true : false }))
+  )
+  const [selectedSubcategories, setSelectedSubcategories] = useState<SubcategorySelection[]>(
+    DEFAULT_CATEGORIES.filter((cat) => cat.type === 'expense').map((cat) => ({
+      categoryName: cat.name,
+      selected: DEFAULT_SUBCATEGORIES[cat.name] ? [DEFAULT_SUBCATEGORIES[cat.name][0]] : [],
+      custom: [],
+    }))
   )
   const [categoryBudgets, setCategoryBudgets] = useState<CategoryBudget[]>([])
   const [firstTransaction, setFirstTransaction] = useState<Transaction>({
@@ -136,15 +161,27 @@ export default function Onboarding() {
       }
       setStep(5)
     } else if (step === 5) {
-      // Step 5: Budget allocation is mandatory (must have at least one category with budget > 0)
+      // Step 5: At least one sub-category per main category must be selected
+      const selectedCategoryNames = selectedCategories.filter(c => c.selected && c.type === 'expense').map(c => c.name)
+      const hasSubcategories = selectedSubcategories
+        .filter(sc => selectedCategoryNames.includes(sc.categoryName))
+        .every(sc => (sc.selected && sc.selected.length > 0) || (sc.custom && sc.custom.length > 0))
+
+      if (!hasSubcategories) {
+        alert('Please select or add at least one sub-category for each main category')
+        return
+      }
+      setStep(6)
+    } else if (step === 6) {
+      // Step 6: Budget allocation is mandatory (must have at least one category with budget > 0)
       const hasAllocatedBudget = categoryBudgets.some(cb => cb.amount > 0)
       if (!hasAllocatedBudget) {
         alert('Please allocate budget to at least one category')
         return
       }
-      setStep(6)
-    } else if (step === 6) {
-      // Step 6: First transaction is mandatory (category AND amount required)
+      setStep(7)
+    } else if (step === 7) {
+      // Step 7: First transaction is mandatory (category AND amount required)
       if (!firstTransaction.category || firstTransaction.amount <= 0) {
         alert('Please select a category and enter an amount for your first transaction')
         return
@@ -158,6 +195,36 @@ export default function Onboarding() {
       selectedCategories.map((cat) =>
         cat.name === categoryName ? { ...cat, selected: !cat.selected } : cat
       )
+    )
+  }
+
+  const toggleSubcategory = (categoryName: string, subcategoryName: string) => {
+    setSelectedSubcategories(
+      selectedSubcategories.map((sc) => {
+        if (sc.categoryName === categoryName) {
+          const newSelected = sc.selected.includes(subcategoryName)
+            ? sc.selected.filter(s => s !== subcategoryName)
+            : [...sc.selected, subcategoryName]
+          return { ...sc, selected: newSelected }
+        }
+        return sc
+      })
+    )
+  }
+
+  const addCustomSubcategory = (categoryName: string, customName: string) => {
+    if (!customName.trim()) return
+    setSelectedSubcategories(
+      selectedSubcategories.map((sc) => {
+        if (sc.categoryName === categoryName) {
+          return {
+            ...sc,
+            custom: [...(sc.custom || []), customName],
+            selected: [...sc.selected, customName],
+          }
+        }
+        return sc
+      })
     )
   }
 
@@ -186,7 +253,7 @@ export default function Onboarding() {
         },
       ])
 
-      // Step 2: Create selected categories
+      // Step 2: Create selected main categories
       const selectedCats = selectedCategories.filter((cat) => cat.selected)
       const categoryData = selectedCats.map((cat) => ({
         user_id: user.id,
@@ -201,6 +268,33 @@ export default function Onboarding() {
         .from('categories')
         .insert(categoryData)
         .select()
+
+      // Step 2b: Create sub-categories for each main category
+      if (insertedCategories && insertedCategories.length > 0) {
+        const subcategoryData: any[] = []
+
+        insertedCategories.forEach((mainCat) => {
+          const subcats = selectedSubcategories.find((sc) => sc.categoryName === mainCat.name)
+          if (subcats && (subcats.selected.length > 0 || (subcats.custom && subcats.custom.length > 0))) {
+            const allSubcats = [...(subcats.selected || []), ...(subcats.custom || [])]
+            allSubcats.forEach((subcatName) => {
+              subcategoryData.push({
+                user_id: user.id,
+                parent_id: mainCat.id,
+                name: subcatName,
+                icon: '📌',
+                color: mainCat.color,
+                type: mainCat.type,
+                is_default: false,
+              })
+            })
+          }
+        })
+
+        if (subcategoryData.length > 0) {
+          await supabase.from('categories').insert(subcategoryData)
+        }
+      }
 
       // Step 3: Create budgets and transaction in parallel (both depend on insertedCategories)
       const now = new Date()
@@ -270,8 +364,8 @@ export default function Onboarding() {
                 </svg>
               </div>
               <h2 className="text-3xl font-bold text-white mb-3">Onboarding Complete! 🎉</h2>
-              <p className="text-slate-400 text-lg mb-2">Welcome to FinMgmt, {user?.user_metadata?.full_name || 'friend'}!</p>
-              <p className="text-slate-500 text-sm">Your account is all set up and ready to use.</p>
+              <p className="text-slate-400 text-lg mb-2">Welcome to Astiq, {user?.user_metadata?.full_name || 'friend'}!</p>
+              <p className="text-slate-500 text-sm">Your categories, sub-categories, budgets, and first transaction are all set up. Let's start tracking your expenses!</p>
             </div>
             <div className="mt-8 pt-6 border-t border-slate-700">
               <p className="text-slate-400 text-sm mb-3">Redirecting to dashboard in 3 seconds...</p>
@@ -291,7 +385,7 @@ export default function Onboarding() {
         <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-xl p-8">
           {/* Progress */}
           <div className="flex items-center justify-between mb-8 overflow-x-auto pb-2">
-            {[1, 2, 3, 4, 5, 6].map((s) => (
+            {[1, 2, 3, 4, 5, 6, 7].map((s) => (
               <div key={s} className="flex items-center flex-shrink-0">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold transition text-sm ${
@@ -302,7 +396,7 @@ export default function Onboarding() {
                 >
                   {s < step ? <Check className="w-5 h-5" /> : s}
                 </div>
-                {s < 6 && (
+                {s < 7 && (
                   <div
                     className={`h-1 w-8 mx-1 transition ${
                       s < step ? 'bg-primary-600' : 'bg-slate-700'
@@ -474,8 +568,60 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* Step 5: Budget Per Category */}
+          {/* Step 5: Select Sub-Categories */}
           {step === 5 && (
+            <div>
+              <h2 className="text-2xl font-bold text-white mb-2">Select Sub-Categories</h2>
+              <p className="text-slate-400 mb-6">Choose sub-categories for tracking (Select at least one per main category)</p>
+              <div className="space-y-6 max-h-96 overflow-y-auto mb-8">
+                {selectedCategories
+                  .filter((cat) => cat.selected && cat.type === 'expense')
+                  .map((mainCat) => {
+                    const subcats = selectedSubcategories.find((sc) => sc.categoryName === mainCat.name)
+                    const availableSubcats = DEFAULT_SUBCATEGORIES[mainCat.name] || []
+                    return (
+                      <div key={mainCat.name} className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                        <h3 className="text-lg font-semibold text-white mb-3 flex items-center space-x-2">
+                          <span className="text-2xl">{mainCat.icon}</span>
+                          <span>{mainCat.name}</span>
+                        </h3>
+                        <div className="space-y-2 ml-8">
+                          {availableSubcats.map((subcat) => (
+                            <button
+                              key={subcat}
+                              onClick={() => toggleSubcategory(mainCat.name, subcat)}
+                              className={`w-full flex items-center space-x-3 p-2 rounded-lg border transition ${
+                                subcats?.selected.includes(subcat)
+                                  ? 'bg-primary-900/30 border-primary-600'
+                                  : 'bg-slate-700/50 border-slate-600 hover:border-slate-500'
+                              } cursor-pointer`}
+                            >
+                              <span className="text-white font-medium flex-1 text-left text-sm">{subcat}</span>
+                              {subcats?.selected.includes(subcat) && <Check className="w-4 h-4 text-primary-500" />}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+              </div>
+              <div className="flex space-x-2">
+                <button onClick={() => setStep(4)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-lg transition">
+                  Back
+                </button>
+                <button
+                  onClick={handleNext}
+                  className="flex-1 flex items-center justify-center space-x-2 bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 rounded-lg transition"
+                >
+                  <span>Continue</span>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 6: Budget Per Category */}
+          {step === 6 && (
             <div>
               <h2 className="text-2xl font-bold text-white mb-2">Budget Per Category</h2>
               <p className="text-slate-400 mb-6">Allocate your budget across categories (Allocate at least one)</p>
@@ -502,7 +648,7 @@ export default function Onboarding() {
                 Total: {formData.currency} {categoryBudgets.reduce((sum, cb) => sum + cb.amount, 0).toFixed(2)} / {formData.currency} {formData.monthly_budget.toFixed(2)}
               </p>
               <div className="flex space-x-2">
-                <button onClick={() => setStep(4)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-lg transition">
+                <button onClick={() => setStep(5)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-lg transition">
                   Back
                 </button>
                 <button
@@ -517,15 +663,15 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* Step 6: Add First Transaction */}
-          {step === 6 && (
+          {/* Step 7: Add First Transaction */}
+          {step === 7 && (
             <div>
               {loading && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                   <div className="bg-slate-900 border border-slate-700 rounded-lg p-8 text-center">
                     <div className="animate-spin h-12 w-12 border-4 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
                     <h3 className="text-lg font-semibold text-white mb-2">Setting up your account...</h3>
-                    <p className="text-slate-400 text-sm">Creating your categories, budgets, and first transaction</p>
+                    <p className="text-slate-400 text-sm">Creating your categories, sub-categories, budgets, and first transaction</p>
                   </div>
                 </div>
               )}
@@ -573,7 +719,7 @@ export default function Onboarding() {
               </div>
               <p className="text-xs text-slate-400 mb-8">Let's record your first transaction to start tracking your finances</p>
               <div className="flex space-x-2">
-                <button onClick={() => setStep(5)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-lg transition">
+                <button onClick={() => setStep(6)} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-medium py-2 rounded-lg transition">
                   Back
                 </button>
                 <button
