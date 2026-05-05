@@ -1,0 +1,17 @@
+<svg width="1000" height="400" viewBox="0 0 680 400" xmlns="http://www.w3.org/2000/svg">
+  <title>Astiq Logo</title>
+  <desc>Astiq - Polish and shine your finances. A wordmark with a flowing polishing stroke.</desc>
+  
+  <!-- Main wordmark -->
+  <g>
+    <!-- Primary wordmark: astiq -->
+    <text x="340" y="120" font-size="120" font-weight="700" fill="#FF8C00" text-anchor="middle" font-family="Futura, Trebuchet MS, sans-serif" letter-spacing="8">astiq</text>
+  </g>
+  
+  <!-- Single polishing stroke -->
+  <g>
+    <!-- Main polishing stroke - represents the cloth polishing -->
+    <path d="M 140 155 Q 340 145 540 160" 
+          fill="none" stroke="#FF8C00" stroke-width="6" stroke-linecap="round"/>
+  </g>
+</svg>
