@@ -16,6 +16,8 @@ interface UserAdminStats {
   transaction_count: number
   total_spending: number
   is_admin: boolean
+  two_factor_enabled?: boolean
+  two_factor_verified_at?: string | null
 }
 
 interface AppStats {
@@ -221,25 +223,37 @@ export default function AdminPanel() {
         )
       )
 
-      // Fetch is_admin status from profiles table
+      // Fetch is_admin and 2FA status from profiles table
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, is_admin')
+        .select('id, is_admin, two_factor_enabled, two_factor_verified_at')
 
       const adminMap = new Map(
         (profiles || []).map((p: { id: string; is_admin: boolean }) => [p.id, p.is_admin || false])
       )
 
-      const enriched: UserAdminStats[] = (authStats || []).map((u: UserAdminStats, i: number) => ({
-        ...u,
-        login_count: Number(u.login_count),
-        transaction_count: txnResults[i].data?.length || 0,
-        total_spending: txnResults[i].data?.reduce((s: number, t: { amount: number; category_id: string }) => {
-          const catType = categoryTypeMap.get(t.category_id)
-          return catType === 'income' ? s : s + t.amount
-        }, 0) || 0,
-        is_admin: adminMap.get(u.id) || false,
-      }))
+      const mfaMap = new Map(
+        (profiles || []).map((p: { id: string; two_factor_enabled?: boolean; two_factor_verified_at?: string | null }) => [
+          p.id,
+          { enabled: p.two_factor_enabled || false, verified_at: p.two_factor_verified_at }
+        ])
+      )
+
+      const enriched: UserAdminStats[] = (authStats || []).map((u: UserAdminStats, i: number) => {
+        const mfaData = mfaMap.get(u.id)
+        return {
+          ...u,
+          login_count: Number(u.login_count),
+          transaction_count: txnResults[i].data?.length || 0,
+          total_spending: txnResults[i].data?.reduce((s: number, t: { amount: number; category_id: string }) => {
+            const catType = categoryTypeMap.get(t.category_id)
+            return catType === 'income' ? s : s + t.amount
+          }, 0) || 0,
+          is_admin: adminMap.get(u.id) || false,
+          two_factor_enabled: mfaData?.enabled || false,
+          two_factor_verified_at: mfaData?.verified_at || null,
+        }
+      })
 
       setUsers(enriched)
 
@@ -362,7 +376,7 @@ export default function AdminPanel() {
                       <th className="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wide">Supabase Last Sign-in</th>
                       <th className="px-5 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wide">Logins</th>
                       <th className="px-5 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wide">Transactions</th>
-                      <th className="px-5 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wide">Spending</th>
+                      <th className="px-5 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wide">2FA Status</th>
                       <th className="px-5 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wide">Admin</th>
                       <th className="px-5 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wide">Actions</th>
                     </tr>
@@ -400,8 +414,24 @@ export default function AdminPanel() {
                           <span className="text-white font-medium text-sm">{user.login_count}</span>
                         </td>
                         <td className="px-5 py-4 text-right text-sm text-white">{user.transaction_count}</td>
-                        <td className="px-5 py-4 text-right text-sm text-white font-medium">
-                          {getCurrencySymbol(currency)}{user.total_spending.toFixed(2)}
+                        <td className="px-5 py-4 text-center">
+                          {user.two_factor_enabled ? (
+                            <div className="inline-flex flex-col items-center space-y-1">
+                              <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-lg bg-green-900/30 text-green-400 text-xs font-medium">
+                                <Shield className="w-3.5 h-3.5" />
+                                <span>Enabled</span>
+                              </span>
+                              {user.two_factor_verified_at && (
+                                <span className="text-xs text-slate-500">
+                                  {new Date(user.two_factor_verified_at).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-lg bg-slate-700 text-slate-400 text-xs font-medium">
+                              <span>Disabled</span>
+                            </span>
+                          )}
                         </td>
                         <td className="px-5 py-4 text-center">
                           {isOwner ? (

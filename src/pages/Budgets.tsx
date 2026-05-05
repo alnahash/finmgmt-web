@@ -46,6 +46,13 @@ interface BudgetFormData {
   year?: number
 }
 
+interface BudgetStatus {
+  percentage: number
+  color: string
+  textColor: string
+  label: string
+}
+
 export default function Budgets() {
   const { user } = useContext(AuthContext)
   const [budgets, setBudgets] = useState<Budget[]>([])
@@ -63,6 +70,7 @@ export default function Budgets() {
   const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped')
   const [totalBudgetSet, setTotalBudgetSet] = useState(0)
   const [totalSpent, setTotalSpent] = useState(0)
+  const [categorySpending, setCategorySpending] = useState<Map<string, number>>(new Map())
 
   useEffect(() => {
     fetchData()
@@ -144,11 +152,24 @@ export default function Budgets() {
         const categoryTypeMap = new Map(
           (cats || []).map((c) => [c.id, c.type || 'expense'])
         )
+
+        // Calculate total spent
         const spent = (monthTransactions as Array<{amount: number; category_id: string}>).reduce((sum, t) => {
           const catType = categoryTypeMap.get(t.category_id)
           return catType === 'income' ? sum : sum + t.amount
         }, 0)
         setTotalSpent(spent)
+
+        // Calculate spending per category
+        const spendingByCategory = new Map<string, number>()
+        monthTransactions.forEach((t: {amount: number; category_id: string}) => {
+          const catType = categoryTypeMap.get(t.category_id)
+          if (catType !== 'income') {
+            const current = spendingByCategory.get(t.category_id) || 0
+            spendingByCategory.set(t.category_id, current + t.amount)
+          }
+        })
+        setCategorySpending(spendingByCategory)
       }
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -399,6 +420,21 @@ export default function Budgets() {
     return subBudgets.reduce((sum, b) => sum + b.amount, 0)
   }
 
+  // Get budget status for a category (color, percentage, label)
+  const getCategoryBudgetStatus = (budgetAmount: number, spending: number): BudgetStatus => {
+    if (budgetAmount === 0) {
+      return { percentage: 0, color: 'bg-slate-600', textColor: 'text-slate-400', label: 'No Budget Set' }
+    }
+    const percentage = (spending / budgetAmount) * 100
+    if (percentage <= 80) {
+      return { percentage, color: 'bg-green-500', textColor: 'text-green-400', label: 'Good' }
+    } else if (percentage <= 99) {
+      return { percentage, color: 'bg-orange-500', textColor: 'text-orange-400', label: 'Warning' }
+    } else {
+      return { percentage, color: 'bg-red-500', textColor: 'text-red-400', label: 'Over Budget' }
+    }
+  }
+
   const grouped = groupBudgetsByCategory()
 
   return (
@@ -606,7 +642,7 @@ export default function Budgets() {
                       return (
                         <div
                           key={item.category.id}
-                          className={`flex items-center justify-between p-4 ${
+                          className={`flex items-start justify-between p-4 ${
                             idx !== group.subCategories.length - 1 ? 'border-b border-slate-700' : ''
                           } ${!isLeaf ? 'bg-slate-700/20' : ''} ${isCreating ? 'bg-primary-900/20' : ''}`}
                         >
@@ -684,16 +720,15 @@ export default function Budgets() {
                             </div>
                           ) : (
                             // Display Mode
-                            <div className="flex items-center space-x-3">
-                              <span className={`font-semibold min-w-[100px] ${!isLeaf ? 'text-slate-300' : 'text-white'}`}>
-                                {getCurrencySymbol(currency)}
-                                {budget?.amount.toFixed(2) || '0.00'}
-                              </span>
-
+                            <div className="flex-1">
                               {!isLeaf ? (
-                                <span className="text-xs text-slate-400">
-                                  Read-only
-                                </span>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-slate-300 font-semibold">
+                                    {getCurrencySymbol(currency)}
+                                    {budget?.amount.toFixed(2) || '0.00'}
+                                  </span>
+                                  <span className="text-xs text-slate-400">Read-only</span>
+                                </div>
                               ) : !budget ? (
                                 <button
                                   onClick={() => handleAddBudget(item.category.id)}
@@ -704,19 +739,77 @@ export default function Budgets() {
                                 </button>
                               ) : (
                                 <>
-                                  <button
-                                    onClick={() => handleEditStart(budget)}
-                                    className="text-slate-400 hover:text-primary-500 transition"
-                                  >
-                                    ✏️
-                                  </button>
+                                  {/* Budget Progress Bar for Categories with Budgets */}
+                                  <div className="space-y-2">
+                                    {/* Budget Amount and Actions Row */}
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <p className="text-xs text-slate-400 uppercase tracking-wide">Budget</p>
+                                        <p className="text-white font-semibold">
+                                          {getCurrencySymbol(currency)}{budget.amount.toFixed(2)}
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <button
+                                          onClick={() => handleEditStart(budget)}
+                                          className="text-slate-400 hover:text-primary-500 transition"
+                                          title="Edit budget"
+                                        >
+                                          ✏️
+                                        </button>
 
-                                  <button
-                                    onClick={() => handleDeleteBudget(budget.id)}
-                                    className="text-slate-400 hover:text-red-500 transition"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                                        <button
+                                          onClick={() => handleDeleteBudget(budget.id)}
+                                          className="text-slate-400 hover:text-red-500 transition"
+                                          title="Delete budget"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Progress Bar Section */}
+                                    {(() => {
+                                      const spending = categorySpending.get(item.category.id) || 0
+                                      const status = getCategoryBudgetStatus(budget.amount, spending)
+                                      const savings = budget.amount - spending
+
+                                      return (
+                                        <div className="space-y-1.5">
+                                          {/* Progress Bar */}
+                                          <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                                            <div
+                                              className={`h-full ${status.color} transition-all duration-300 rounded-full`}
+                                              style={{ width: `${Math.min(status.percentage, 100)}%` }}
+                                            />
+                                          </div>
+
+                                          {/* Status Info Row */}
+                                          <div className="flex items-center justify-between text-xs">
+                                            <div>
+                                              <span className="text-slate-400">Spent: </span>
+                                              <span className="text-white font-medium">
+                                                {getCurrencySymbol(currency)}{spending.toFixed(2)}
+                                              </span>
+                                            </div>
+                                            <div className={`font-semibold ${status.textColor}`}>
+                                              {status.percentage.toFixed(0)}% - {status.label}
+                                            </div>
+                                          </div>
+
+                                          {/* Savings/Overage Row */}
+                                          <div className="flex items-center justify-between text-xs">
+                                            <span className={savings >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                              {savings >= 0 ? '✓ Savings:' : '⚠ Over by:'}
+                                            </span>
+                                            <span className={`font-semibold ${savings >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                              {getCurrencySymbol(currency)}{Math.abs(savings).toFixed(2)}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      )
+                                    })()}
+                                  </div>
                                 </>
                               )}
                             </div>
