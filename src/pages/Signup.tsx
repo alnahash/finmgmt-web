@@ -282,7 +282,7 @@ export default function Signup() {
         <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-xl p-8">
           {/* Header */}
           <div className="text-center mb-8">
-            <img src="/logo/astiq-logo.svg" alt="Astiq" className="h-16 mx-auto mb-4" />
+            <img src="/logo/astiq-logo.svg" alt="Astiq" className="h-24 mx-auto mb-4" />
             <p className="text-slate-400">Create Your Account</p>
           </div>
 
