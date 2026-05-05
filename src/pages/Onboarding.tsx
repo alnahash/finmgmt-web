@@ -212,22 +212,6 @@ export default function Onboarding() {
     )
   }
 
-  const addCustomSubcategory = (categoryName: string, customName: string) => {
-    if (!customName.trim()) return
-    setSelectedSubcategories(
-      selectedSubcategories.map((sc) => {
-        if (sc.categoryName === categoryName) {
-          return {
-            ...sc,
-            custom: [...(sc.custom || []), customName],
-            selected: [...sc.selected, customName],
-          }
-        }
-        return sc
-      })
-    )
-  }
-
   const handleCategoryBudgetChange = (categoryName: string, amount: number) => {
     setCategoryBudgets(
       categoryBudgets.map((cb) =>
