@@ -94,12 +94,26 @@ export default function Dashboard() {
           .single()
 
         // Get transactions for the period
-        const { data: transactions } = await supabase
+        const { data: allTransactions } = await supabase
           .from('transactions')
           .select('amount, category_id')
           .eq('user_id', user.id)
           .gte('transaction_date', startDate)
           .lte('transaction_date', endDate)
+
+        // Get categories to filter out income
+        const { data: categories } = await supabase
+          .from('categories')
+          .select('id, type')
+          .eq('user_id', user.id)
+
+        const categoryTypeMap = new Map(categories?.map((c) => [c.id, c.type]) || [])
+
+        // Filter to only expense transactions
+        const transactions = (allTransactions || []).filter((t) => {
+          const catType = categoryTypeMap.get(t.category_id)
+          return catType !== 'income'
+        })
 
         if (!transactions || transactions.length === 0) {
           setStats({
@@ -131,13 +145,13 @@ export default function Dashboard() {
         // Calculate top category
         const categoryMap = new Map<string, { name: string; amount: number }>()
 
-        // Fetch categories to get names
-        const { data: categories } = await supabase
+        // Fetch full category data to get names
+        const { data: fullCategories } = await supabase
           .from('categories')
           .select('id, name')
           .eq('user_id', user.id)
 
-        const catNameMap = new Map(categories?.map((c) => [c.id, c.name]) || [])
+        const catNameMap = new Map(fullCategories?.map((c) => [c.id, c.name]) || [])
 
         // Group by category
         transactions.forEach((t) => {
