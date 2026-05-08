@@ -59,7 +59,7 @@ export default function Onboarding() {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [alreadyOnboarded, setAlreadyOnboarded] = useState(false)
+  const [progressLabel, setProgressLabel] = useState('Setting up your account…')
   const [formData, setFormData] = useState({
     full_name: '',
     currency: 'USD',
@@ -92,30 +92,27 @@ export default function Onboarding() {
     }
   }, [user, navigate])
 
-  // Check if already onboarded and show message
+  // If the user navigates here directly while already onboarded, kick
+  // them out to the dashboard with a hard redirect so App.tsx refetches
+  // routing state cleanly. We don't show a popup -- App.tsx's loading
+  // gate handles the brief transition.
   useEffect(() => {
-    const checkOnboarded = async () => {
-      if (!user) return
-      try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('onboarded')
-          .eq('id', user.id)
-          .single()
-
-        if (data?.onboarded) {
-          setAlreadyOnboarded(true)
-          // Redirect after 3 seconds
-          setTimeout(() => {
-            navigate('/')
-          }, 3000)
-        }
-      } catch (error) {
-        console.error('Error checking onboarded status:', error)
+    if (!user) return
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('onboarded')
+        .eq('id', user.id)
+        .single()
+      if (!cancelled && data?.onboarded) {
+        window.location.replace('/')
       }
+    })()
+    return () => {
+      cancelled = true
     }
-    checkOnboarded()
-  }, [user, navigate])
+  }, [user])
 
   useEffect(() => {
     // Initialize category budgets when categories are selected
@@ -223,6 +220,7 @@ export default function Onboarding() {
   const completeOnboarding = async () => {
     if (!user) return
     setLoading(true)
+    setProgressLabel('Saving your profile…')
 
     try {
       // Step 1: Update profile (must be first to set onboarded flag).
@@ -240,6 +238,7 @@ export default function Onboarding() {
         })
         .eq('id', user.id)
       if (profileError) throw profileError
+      setProgressLabel('Creating your categories…')
 
       // Step 2: Create selected main categories
       const selectedCats = selectedCategories.filter((cat) => cat.selected)
@@ -285,6 +284,7 @@ export default function Onboarding() {
       }
 
       // Step 3: Create budgets and transaction in parallel (both depend on insertedCategories)
+      setProgressLabel('Saving budgets and your first transaction…')
       const now = new Date()
 
       const createBudgetsPromise = (async () => {
@@ -330,8 +330,12 @@ export default function Onboarding() {
       // Wait for both operations to complete in parallel
       await Promise.all([createBudgetsPromise, createTransactionPromise])
 
-      // Navigate to dashboard after all operations complete
-      navigate('/')
+      // Hard-redirect to '/' so App.tsx refetches the onboarding flag
+      // fresh and routes us to the Dashboard. Using navigate('/') here
+      // would race against App.tsx's stale onboarded=false state and
+      // bounce back to /onboarding, causing the popup-flicker loop.
+      setProgressLabel('All set! Taking you to your dashboard…')
+      window.location.replace('/')
     } catch (error) {
       console.error('Error completing onboarding:', error)
       alert('Error completing onboarding. Please try again.')
@@ -339,27 +343,23 @@ export default function Onboarding() {
     }
   }
 
-  // Show already onboarded message
-  if (alreadyOnboarded) {
+  // Stable saving / completion screen shown while completeOnboarding
+  // is running and during the final hard-redirect. No popup, no
+  // re-renders against changing auth state -- just one calm progress
+  // panel until the browser navigates to the dashboard.
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl">
-          <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-xl p-12 text-center">
-            <div className="mb-6">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-green-900/30 border border-green-700 rounded-full mb-4">
-                <svg className="w-10 h-10 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <h2 className="text-3xl font-bold text-white mb-3">Onboarding Complete! 🎉</h2>
-              <p className="text-slate-400 text-lg mb-2">Welcome to Astiq, {user?.user_metadata?.full_name || 'friend'}!</p>
-              <p className="text-slate-500 text-sm">Your categories, sub-categories, budgets, and first transaction are all set up. Let's start tracking your expenses!</p>
+        <div className="w-full max-w-md">
+          <div className="bg-slate-900 border border-slate-800 rounded-lg shadow-xl p-10 text-center">
+            <img src="/logo/astiq-logo.svg" alt="astiq" className="h-16 mx-auto mb-6" />
+            <div className="flex justify-center mb-5">
+              <div className="animate-spin h-10 w-10 border-4 border-primary-500 border-t-transparent rounded-full"></div>
             </div>
-            <div className="mt-8 pt-6 border-t border-slate-700">
-              <p className="text-slate-400 text-sm mb-3">Redirecting to dashboard in 3 seconds...</p>
-              <div className="flex justify-center">
-                <div className="animate-spin h-6 w-6 border-2 border-primary-500 border-t-transparent rounded-full"></div>
-              </div>
+            <p className="text-white text-lg font-medium mb-2">Almost there…</p>
+            <p className="text-slate-400 text-sm">{progressLabel}</p>
+            <div className="mt-6 w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-full bg-primary-500 animate-pulse" style={{ width: '100%' }}></div>
             </div>
           </div>
         </div>
