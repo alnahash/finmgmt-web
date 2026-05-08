@@ -186,18 +186,14 @@ export default function Signup() {
         email_confirmed_at: user?.email_confirmed_at,
         emailConfirmed: !!user?.email_confirmed_at,
       })
-      if (user) {
-        // Create profile
-        const { error: profileError } = await supabase.from('profiles').upsert([
-          {
-            id: user.id,
-            full_name: fullName,
-            email,
-            onboarded: false,
-          },
-        ])
-        if (profileError) throw profileError
 
+      // Profile row is created automatically by the on_auth_user_created
+      // trigger (see migration 20260508120000_create_profile_on_signup.sql).
+      // We no longer upsert from the client because the user has no session
+      // yet when email confirmation is required, and the insert would be
+      // blocked by RLS.
+
+      if (user) {
         // Store email in localStorage for email verification page (resend functionality)
         localStorage.setItem('pending_verification_email', email)
       }
