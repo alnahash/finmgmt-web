@@ -225,17 +225,21 @@ export default function Onboarding() {
     setLoading(true)
 
     try {
-      // Step 1: Update profile (must be first to set onboarded flag)
-      await supabase.from('profiles').upsert([
-        {
-          id: user.id,
+      // Step 1: Update profile (must be first to set onboarded flag).
+      // Use .update() rather than .upsert() because the row was already
+      // created by the on_auth_user_created trigger, and the RLS policy
+      // on profiles permits UPDATE but not INSERT for end users.
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
           full_name: formData.full_name,
           currency: formData.currency,
           monthly_budget: formData.monthly_budget,
           month_start_day: formData.month_start_day,
           onboarded: true,
-        },
-      ])
+        })
+        .eq('id', user.id)
+      if (profileError) throw profileError
 
       // Step 2: Create selected main categories
       const selectedCats = selectedCategories.filter((cat) => cat.selected)
