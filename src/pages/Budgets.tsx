@@ -3,7 +3,14 @@ import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { Plus, Trash2, Copy, ChevronDown, ChevronUp } from 'lucide-react'
-import { getCurrencySymbol, getUniquePeriodKeysByType } from '../lib/utils'
+import { getCurrencySymbol, getUniquePeriodKeysByType, getPeriodDateRange } from '../lib/utils'
+import AIInsightsCard from '../components/AIInsightsCard'
+import RecommendationsCard from '../components/RecommendationsCard'
+import {
+  analyzeSpendingPatterns,
+  generateRecommendations,
+  BudgetRecommendation,
+} from '../services/recommendations'
 
 interface Budget {
   id: string
@@ -53,6 +60,27 @@ interface BudgetStatus {
   label: string
 }
 
+interface BudgetStats {
+  categoryId: string
+  categoryName: string
+  categoryIcon: string
+  budgetAmount: number
+  actualSpent: number
+  remaining: number
+  percentageUsed: number
+  status: 'on-track' | 'warning' | 'exceeded'
+  statusColor: 'green' | 'yellow' | 'red'
+}
+
+interface MonthSummary {
+  monthLabel: string
+  totalBudget: number
+  totalSpent: number
+  totalRemaining: number
+  percentageUsed: number
+  daysRemaining: number
+}
+
 export default function Budgets() {
   const { user } = useContext(AuthContext)
   const [budgets, setBudgets] = useState<Budget[]>([])
@@ -67,10 +95,21 @@ export default function Budgets() {
   const [creatingBudgetForCategory, setCreatingBudgetForCategory] = useState<string | null>(null)
   const [editFormData, setEditFormData] = useState<BudgetFormData>({ amount: '' })
   const [showCopyConfirm, setShowCopyConfirm] = useState(false)
-  const [viewMode, setViewMode] = useState<'grouped' | 'list'>('grouped')
+  const [viewMode, setViewMode] = useState<'grouped' | 'list' | 'cards'>('grouped')
   const [totalBudgetSet, setTotalBudgetSet] = useState(0)
   const [totalSpent, setTotalSpent] = useState(0)
   const [categorySpending, setCategorySpending] = useState<Map<string, number>>(new Map())
+  const [currentPeriodKey, setCurrentPeriodKey] = useState('')
+
+  // Month summary and budget stats
+  const [monthSummary, setMonthSummary] = useState<MonthSummary | null>(null)
+  const [budgetStats, setBudgetStats] = useState<BudgetStats[]>([])
+
+  // Recommendations
+  const [recommendations, setRecommendations] = useState<BudgetRecommendation[]>([])
+  const [allTransactions, setAllTransactions] = useState<
+    Array<{ amount: number; category_id: string; transaction_date: string }>
+  >([])
 
   useEffect(() => {
     fetchData()
@@ -109,10 +148,16 @@ export default function Budgets() {
         .select('transaction_date')
         .eq('user_id', user.id)
 
+      let generatedPeriods: string[] = []
       if (transactions && transactions.length > 0) {
         const txnDates = transactions.map((t) => t.transaction_date)
-        const generatedPeriods = getUniquePeriodKeysByType(txnDates, 'monthly', startDay)
+        generatedPeriods = getUniquePeriodKeysByType(txnDates, 'monthly', startDay)
         setAvailablePeriods(generatedPeriods)
+
+        // Set current period (first/most recent)
+        if (generatedPeriods.length > 0) {
+          setCurrentPeriodKey(generatedPeriods[0])
+        }
       }
 
       // Fetch budgets
@@ -129,24 +174,52 @@ export default function Budgets() {
 
       setBudgets(budgs || [])
 
-      // Calculate total budget set and total spent this month
-      const today = new Date()
-      const currentMonth = today.getMonth() + 1
-      const currentYear = today.getFullYear()
+      // Fetch ALL historical transactions for recommendations analysis (last 12 months)
+      const twelveMonthsAgo = new Date()
+      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
+      const isoDate = twelveMonthsAgo.toISOString().split('T')[0]
 
-      const currentMonthBudgets = budgs?.filter(
-        (b) => b.month === currentMonth && b.year === currentYear
-      ) || []
-      const totalBudget = currentMonthBudgets.reduce((sum, b) => sum + b.amount, 0)
-      setTotalBudgetSet(totalBudget)
-
-      // Fetch transactions for current month to calculate spending
-      const { data: monthTransactions } = await supabase
+      const { data: historicalTxns } = await supabase
         .from('transactions')
-        .select('amount, category_id')
+        .select('amount, category_id, transaction_date')
         .eq('user_id', user.id)
-        .gte('transaction_date', `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`)
-        .lte('transaction_date', `${currentYear}-${String(currentMonth).padStart(2, '0')}-31`)
+        .gte('transaction_date', isoDate)
+
+      setAllTransactions(historicalTxns || [])
+
+      // Calculate total budget set and total spent for current period
+      if (generatedPeriods.length > 0 && generatedPeriods[0]) {
+        const { startDate, endDate } = getPeriodDateRange(generatedPeriods[0])
+
+        // Get budgets that overlap with the current period
+        // Extract month/year from period dates to find relevant budgets
+        const startDateObj = new Date(startDate)
+        const endDateObj = new Date(endDate)
+        const startMonth = startDateObj.getMonth() + 1
+        const startYear = startDateObj.getFullYear()
+        const endMonth = endDateObj.getMonth() + 1
+        const endYear = endDateObj.getFullYear()
+
+        // Include budgets from all months that overlap with the period
+        const relevantBudgets = budgs?.filter((b) => {
+          if (b.year < startYear || b.year > endYear) return false
+          if (b.year === startYear && b.year === endYear) {
+            return b.month >= startMonth && b.month <= endMonth
+          }
+          if (b.year === startYear) return b.month >= startMonth
+          if (b.year === endYear) return b.month <= endMonth
+          return true
+        }) || []
+        const totalBudget = relevantBudgets.reduce((sum, b) => sum + b.amount, 0)
+        setTotalBudgetSet(totalBudget)
+
+        // Fetch transactions for current period to calculate spending
+        const { data: monthTransactions } = await supabase
+          .from('transactions')
+          .select('amount, category_id')
+          .eq('user_id', user.id)
+          .gte('transaction_date', startDate)
+          .lte('transaction_date', endDate)
 
       if (monthTransactions) {
         const categoryTypeMap = new Map(
@@ -171,6 +244,7 @@ export default function Budgets() {
         })
         setCategorySpending(spendingByCategory)
       }
+      } // Close generatedPeriods if block
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -178,15 +252,31 @@ export default function Budgets() {
     }
   }
 
-  const groupBudgetsByCategory = (): GroupedCategory[] => {
-    const today = new Date()
-    const currentMonth = today.getMonth() + 1
-    const currentYear = today.getFullYear()
+  const getRelevantBudgetsForPeriod = (budgetsToFilter: Budget[], periodKey: string): Budget[] => {
+    if (!periodKey) return []
 
-    // Get budgets for current month only
-    const currentMonthBudgets = budgets.filter(
-      (b) => b.month === currentMonth && b.year === currentYear
-    )
+    const { startDate, endDate } = getPeriodDateRange(periodKey)
+    const startDateObj = new Date(startDate)
+    const endDateObj = new Date(endDate)
+    const startMonth = startDateObj.getMonth() + 1
+    const startYear = startDateObj.getFullYear()
+    const endMonth = endDateObj.getMonth() + 1
+    const endYear = endDateObj.getFullYear()
+
+    return budgetsToFilter.filter((b) => {
+      if (b.year < startYear || b.year > endYear) return false
+      if (b.year === startYear && b.year === endYear) {
+        return b.month >= startMonth && b.month <= endMonth
+      }
+      if (b.year === startYear) return b.month >= startMonth
+      if (b.year === endYear) return b.month <= endMonth
+      return true
+    })
+  }
+
+  const groupBudgetsByCategory = (): GroupedCategory[] => {
+    // Get budgets for current period
+    const currentMonthBudgets = getRelevantBudgetsForPeriod(budgets, currentPeriodKey)
 
     const categoryBudgetMap = new Map<string, Budget>()
     currentMonthBudgets.forEach((budget) => {
@@ -252,15 +342,9 @@ export default function Budgets() {
         )
         setBudgets(updatedBudgets)
 
-        // Recalculate totals
-        const today = new Date()
-        const currentMonth = today.getMonth() + 1
-        const currentYear = today.getFullYear()
-
-        const currentMonthBudgets = updatedBudgets.filter(
-          (b) => b.month === currentMonth && b.year === currentYear
-        )
-        const totalBudget = currentMonthBudgets.reduce((sum, b) => sum + b.amount, 0)
+        // Recalculate totals using period-based approach
+        const relevantBudgets = getRelevantBudgetsForPeriod(updatedBudgets, currentPeriodKey)
+        const totalBudget = relevantBudgets.reduce((sum, b) => sum + b.amount, 0)
         setTotalBudgetSet(totalBudget)
 
         setEditingBudgetId(null)
@@ -304,9 +388,16 @@ export default function Budgets() {
     }
 
     try {
-      const today = new Date()
-      const month = today.getMonth() + 1 // 1-12
-      const year = today.getFullYear()
+      // Use the end month/year of the current period for new budgets
+      let month = new Date().getMonth() + 1
+      let year = new Date().getFullYear()
+
+      if (currentPeriodKey) {
+        const { endDate } = getPeriodDateRange(currentPeriodKey)
+        const endDateObj = new Date(endDate)
+        month = endDateObj.getMonth() + 1
+        year = endDateObj.getFullYear()
+      }
 
       const budgetData = {
         user_id: user.id,
@@ -327,13 +418,12 @@ export default function Budgets() {
       // Update local state instead of fetching all data
       if (data && data.length > 0) {
         const newBudget = data[0]
-        setBudgets([...budgets, newBudget])
+        const updatedBudgets = [...budgets, newBudget]
+        setBudgets(updatedBudgets)
 
-        // Recalculate totals
-        const currentMonthBudgets = [...budgets, newBudget].filter(
-          (b) => b.month === month && b.year === year
-        )
-        const totalBudget = currentMonthBudgets.reduce((sum, b) => sum + b.amount, 0)
+        // Recalculate totals using period-based approach
+        const relevantBudgets = getRelevantBudgetsForPeriod(updatedBudgets, currentPeriodKey)
+        const totalBudget = relevantBudgets.reduce((sum, b) => sum + b.amount, 0)
         setTotalBudgetSet(totalBudget)
       }
 
@@ -345,26 +435,87 @@ export default function Budgets() {
     }
   }
 
-  const handleCopyFromLastMonth = async () => {
+  const handleApplyRecommendation = async (categoryId: string, recommendedAmount: number) => {
     if (!user) return
 
     try {
-      const today = new Date()
-      const currentMonth = today.getMonth() + 1 // 1-12
-      const currentYear = today.getFullYear()
+      // Use the end month/year of the current period
+      let month = new Date().getMonth() + 1
+      let year = new Date().getFullYear()
 
-      // Get last month's budgets
-      let lastMonth = currentMonth - 1
-      let lastYear = currentYear
-      if (lastMonth === 0) {
-        lastMonth = 12
-        lastYear = currentYear - 1
+      if (currentPeriodKey) {
+        const { endDate } = getPeriodDateRange(currentPeriodKey)
+        const endDateObj = new Date(endDate)
+        month = endDateObj.getMonth() + 1
+        year = endDateObj.getFullYear()
       }
 
-      const lastMonthBudgets = budgets.filter((b) => b.month === lastMonth && b.year === lastYear)
+      const existingBudget = budgets.find(
+        (b) => b.category_id === categoryId && b.month === month && b.year === year
+      )
+
+      if (existingBudget) {
+        // Update existing budget
+        await supabase
+          .from('budgets')
+          .update({ amount: recommendedAmount })
+          .eq('id', existingBudget.id)
+
+        // Update local state
+        const updatedBudgets = budgets.map((b) =>
+          b.id === existingBudget.id ? { ...b, amount: recommendedAmount } : b
+        )
+        setBudgets(updatedBudgets)
+      } else {
+        // Create new budget
+        await supabase
+          .from('budgets')
+          .insert([
+            {
+              user_id: user.id,
+              category_id: categoryId,
+              amount: recommendedAmount,
+              month,
+              year,
+            },
+          ])
+
+        // Refresh to get the new budget with ID
+        await fetchData()
+      }
+    } catch (error) {
+      console.error('Error applying recommendation:', error)
+      alert('Failed to apply recommendation')
+    }
+  }
+
+  const handleCopyFromLastMonth = async () => {
+    if (!user || !currentPeriodKey) return
+
+    try {
+      // Get the previous period
+      const currentIndex = availablePeriods.indexOf(currentPeriodKey)
+      if (currentIndex <= 0 || currentIndex >= availablePeriods.length) {
+        alert('No previous period found to copy from')
+        return
+      }
+
+      const previousPeriodKey = availablePeriods[currentIndex + 1] // Next in array (older)
+      const currentEndDate = getPeriodDateRange(currentPeriodKey).endDate
+      const previousEndDate = getPeriodDateRange(previousPeriodKey).endDate
+
+      const currentEndDateObj = new Date(currentEndDate)
+      const previousEndDateObj = new Date(previousEndDate)
+      const currentMonth = currentEndDateObj.getMonth() + 1
+      const currentYear = currentEndDateObj.getFullYear()
+      const previousMonth = previousEndDateObj.getMonth() + 1
+      const previousYear = previousEndDateObj.getFullYear()
+
+      // Get previous period's budgets (from the end month of previous period)
+      const lastMonthBudgets = budgets.filter((b) => b.month === previousMonth && b.year === previousYear)
 
       if (lastMonthBudgets.length === 0) {
-        alert('No budgets found from last month to copy')
+        alert('No budgets found from last period to copy')
         return
       }
 
@@ -382,7 +533,7 @@ export default function Budgets() {
         console.error('Error copying budgets:', error)
         alert(`Error copying budgets: ${error.message}`)
       } else {
-        alert(`Copied ${newBudgets.length} budgets from last month`)
+        alert(`Copied ${newBudgets.length} budgets from last period`)
         setShowCopyConfirm(false)
         await fetchData()
       }
@@ -401,6 +552,123 @@ export default function Budgets() {
     }
     setExpandedGroups(newExpanded)
   }
+
+  // Calculate days remaining in the current period
+  const calculateDaysRemaining = (): number => {
+    if (!currentPeriodKey) return 0
+
+    const { endDate } = getPeriodDateRange(currentPeriodKey)
+    const today = new Date()
+    const endDateObj = new Date(endDate)
+    const timeDiff = endDateObj.getTime() - today.getTime()
+    const daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24))
+    return Math.max(0, daysRemaining)
+  }
+
+  // Update month summary with budget tracking and days remaining
+  const updateMonthSummary = () => {
+    const currentMonthBudgets = getRelevantBudgetsForPeriod(budgets, currentPeriodKey)
+    const totalBudget = currentMonthBudgets.reduce((sum, b) => sum + b.amount, 0)
+
+    const daysRemaining = calculateDaysRemaining()
+    const monthLabel = currentPeriodKey ? `Period ${currentPeriodKey.split('-')[0]}-${currentPeriodKey.split('-')[1]}` : 'Current Period'
+    const percentageUsed = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0
+
+    setMonthSummary({
+      monthLabel,
+      totalBudget,
+      totalSpent,
+      totalRemaining: Math.max(0, totalBudget - totalSpent),
+      percentageUsed,
+      daysRemaining
+    })
+  }
+
+  // Update budget stats for each category
+  const updateBudgetStats = () => {
+    const currentMonthBudgets = getRelevantBudgetsForPeriod(budgets, currentPeriodKey)
+
+    const stats: BudgetStats[] = currentMonthBudgets
+      .map((budget) => {
+        const category = categories.find((c) => c.id === budget.category_id)
+        if (!category) return null
+
+        const actualSpent = categorySpending.get(budget.category_id) || 0
+        const remaining = Math.max(0, budget.amount - actualSpent)
+        const percentageUsed = budget.amount > 0 ? (actualSpent / budget.amount) * 100 : 0
+
+        let status: 'on-track' | 'warning' | 'exceeded' = 'on-track'
+        let statusColor: 'green' | 'yellow' | 'red' = 'green'
+
+        if (percentageUsed > 100) {
+          status = 'exceeded'
+          statusColor = 'red'
+        } else if (percentageUsed >= 80) {
+          status = 'warning'
+          statusColor = 'yellow'
+        }
+
+        return {
+          categoryId: budget.category_id,
+          categoryName: category.name,
+          categoryIcon: category.icon,
+          budgetAmount: budget.amount,
+          actualSpent,
+          remaining,
+          percentageUsed,
+          status,
+          statusColor
+        }
+      })
+      .filter((stat): stat is BudgetStats => stat !== null)
+
+    setBudgetStats(stats)
+  }
+
+  // Update summaries whenever data changes
+  useEffect(() => {
+    updateMonthSummary()
+    updateBudgetStats()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budgets, categorySpending, categories])
+
+  // Generate recommendations based on historical data
+  useEffect(() => {
+    if (allTransactions.length === 0 || categories.length === 0) {
+      setRecommendations([])
+      return
+    }
+
+    try {
+      const categoryTypeMap = new Map(
+        categories.map((c) => [c.id, c.type || 'expense'])
+      )
+
+      // Analyze spending patterns
+      const patterns = analyzeSpendingPatterns(
+        allTransactions,
+        categories,
+        categoryTypeMap
+      )
+
+      // Generate recommendations
+      const currentBudgetMap = new Map<string, number>()
+      const today = new Date()
+      const currentMonth = today.getMonth() + 1
+      const currentYear = today.getFullYear()
+
+      budgets
+        .filter((b) => b.month === currentMonth && b.year === currentYear)
+        .forEach((b) => {
+          currentBudgetMap.set(b.category_id, b.amount)
+        })
+
+      const recs = generateRecommendations(patterns, currentBudgetMap)
+      setRecommendations(recs)
+    } catch (error) {
+      console.error('Error generating recommendations:', error)
+    }
+  }, [allTransactions, categories, budgets])
 
   // Check if a category is a leaf (has no children)
   const isLeafCategory = (catId: string): boolean => {
@@ -465,6 +733,16 @@ export default function Budgets() {
                 }`}
               >
                 List View
+              </button>
+              <button
+                onClick={() => setViewMode('cards')}
+                className={`px-4 py-2 rounded transition font-medium text-sm ${
+                  viewMode === 'cards'
+                    ? 'bg-primary-600 text-white'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                Card View
               </button>
             </div>
             {availablePeriods.length > 1 && (
@@ -996,6 +1274,216 @@ export default function Budgets() {
                 {categories.filter((c) => c.type !== 'income').length === 0 && (
                   <div className="p-8 text-center text-slate-400">No expense categories found</div>
                 )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Categories List - Card View */}
+        {viewMode === 'cards' && (
+          <>
+            {/* Card View - Month Summary */}
+            {!loading && monthSummary && (
+              <div className="mb-8 bg-gradient-to-r from-primary-600/20 to-primary-600/10 border border-primary-700/50 rounded-lg p-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Month Label */}
+                  <div>
+                    <p className="text-primary-300 text-xs font-medium uppercase tracking-wide">Month</p>
+                    <p className="text-white font-semibold text-lg">{monthSummary.monthLabel}</p>
+                  </div>
+
+                  {/* Total Budget */}
+                  <div>
+                    <p className="text-primary-300 text-xs font-medium uppercase tracking-wide">Total Budget</p>
+                    <p className="text-white font-semibold text-lg">
+                      {getCurrencySymbol(currency)}{monthSummary.totalBudget.toFixed(2)}
+                    </p>
+                  </div>
+
+                  {/* Total Spent */}
+                  <div>
+                    <p className="text-primary-300 text-xs font-medium uppercase tracking-wide">Spent</p>
+                    <p className="text-white font-semibold text-lg">
+                      {getCurrencySymbol(currency)}{monthSummary.totalSpent.toFixed(2)}
+                    </p>
+                  </div>
+
+                  {/* Days Remaining */}
+                  <div>
+                    <p className="text-primary-300 text-xs font-medium uppercase tracking-wide">Days Left</p>
+                    <p className="text-white font-semibold text-lg">{monthSummary.daysRemaining}</p>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-primary-300 uppercase tracking-wide">Month Progress</span>
+                    <span className={`text-xs font-bold ${
+                      monthSummary.percentageUsed <= 80 ? 'text-green-400' :
+                      monthSummary.percentageUsed <= 99 ? 'text-orange-400' :
+                      'text-red-400'
+                    }`}>
+                      {monthSummary.percentageUsed.toFixed(0)}% used
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-700 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        monthSummary.percentageUsed <= 80 ? 'bg-green-500' :
+                        monthSummary.percentageUsed <= 99 ? 'bg-orange-500' :
+                        'bg-red-500'
+                      }`}
+                      style={{ width: `${Math.min(monthSummary.percentageUsed, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* AI Insights Card */}
+            {!loading && monthSummary && budgetStats.length > 0 && (
+              <div className="mb-8">
+                <AIInsightsCard
+                  context={{
+                    totalBudget: monthSummary.totalBudget,
+                    totalSpent: monthSummary.totalSpent,
+                    percentageUsed: monthSummary.percentageUsed,
+                    daysRemaining: monthSummary.daysRemaining,
+                    budgetStatus:
+                      monthSummary.percentageUsed <= 80
+                        ? 'on-track'
+                        : monthSummary.percentageUsed <= 99
+                          ? 'warning'
+                          : 'exceeded',
+                    categories: budgetStats.map((stat) => ({
+                      name: stat.categoryName,
+                      budgetAmount: stat.budgetAmount,
+                      actualSpent: stat.actualSpent,
+                      status: stat.status,
+                    })),
+                    monthLabel: monthSummary.monthLabel,
+                    currency: getCurrencySymbol(currency),
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Budget Recommendations Card */}
+            {!loading && recommendations.length > 0 && (
+              <div className="mb-8">
+                <RecommendationsCard
+                  recommendations={recommendations}
+                  currencySymbol={getCurrencySymbol(currency)}
+                  onApplyRecommendation={handleApplyRecommendation}
+                  isLoading={loading}
+                />
+              </div>
+            )}
+
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="h-56 bg-slate-800 rounded-lg animate-pulse"></div>
+                ))}
+              </div>
+            ) : budgetStats.length === 0 ? (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                <p className="text-slate-400">No budgets set yet. Click on a category in Grouped or List view to set a budget.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {budgetStats.map((stat) => (
+                  <div
+                    key={stat.categoryId}
+                    className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6 hover:border-slate-600 transition"
+                  >
+                    {/* Card Header */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-3xl">{stat.categoryIcon}</span>
+                        <div>
+                          <h3 className="text-white font-semibold">{stat.categoryName}</h3>
+                          <p className={`text-xs font-medium ${
+                            stat.statusColor === 'green' ? 'text-green-400' :
+                            stat.statusColor === 'yellow' ? 'text-orange-400' :
+                            'text-red-400'
+                          }`}>
+                            {stat.status === 'on-track' ? '✓ On Track' :
+                             stat.status === 'warning' ? '⚠ Warning' :
+                             '✗ Exceeded'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Budget Info */}
+                    <div className="space-y-3 mb-4">
+                      {/* Budget Amount */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400 text-sm">Budget</span>
+                        <span className="text-white font-semibold">
+                          {getCurrencySymbol(currency)}{stat.budgetAmount.toFixed(2)}
+                        </span>
+                      </div>
+
+                      {/* Actual Spent */}
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400 text-sm">Spent</span>
+                        <span className="text-white font-semibold">
+                          {getCurrencySymbol(currency)}{stat.actualSpent.toFixed(2)}
+                        </span>
+                      </div>
+
+                      {/* Remaining/Overage */}
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+                        <span className="text-slate-400 text-sm">
+                          {stat.remaining >= 0 ? 'Remaining' : 'Over by'}
+                        </span>
+                        <span className={`font-semibold ${
+                          stat.remaining >= 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {getCurrencySymbol(currency)}{Math.abs(stat.remaining).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-slate-400 uppercase tracking-wide">Progress</span>
+                        <span className={`text-xs font-bold ${
+                          stat.statusColor === 'green' ? 'text-green-400' :
+                          stat.statusColor === 'yellow' ? 'text-orange-400' :
+                          'text-red-400'
+                        }`}>
+                          {stat.percentageUsed.toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            stat.statusColor === 'green' ? 'bg-green-500' :
+                            stat.statusColor === 'yellow' ? 'bg-orange-500' :
+                            'bg-red-500'
+                          }`}
+                          style={{ width: `${Math.min(stat.percentageUsed, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <button
+                      onClick={() => {
+                        setViewMode('grouped')
+                        // Focus will naturally move to the grouped view
+                      }}
+                      className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white py-2 rounded-lg transition text-sm font-medium"
+                    >
+                      Edit Budget
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </>

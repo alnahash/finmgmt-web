@@ -86,13 +86,6 @@ export default function Dashboard() {
       try {
         const { startDate, endDate } = getPeriodDateRange(selectedPeriod)
 
-        // Get profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('monthly_budget')
-          .eq('id', user.id)
-          .single()
-
         // Get transactions for the period
         const { data: allTransactions } = await supabase
           .from('transactions')
@@ -100,6 +93,18 @@ export default function Dashboard() {
           .eq('user_id', user.id)
           .gte('transaction_date', startDate)
           .lte('transaction_date', endDate)
+
+        // Get budgets for the period (to calculate total budget)
+        const periodParts = selectedPeriod.split('-')
+        const budgetYear = parseInt(periodParts[0], 10)
+        const budgetMonth = parseInt(periodParts[1], 10)
+
+        const { data: budgets } = await supabase
+          .from('budgets')
+          .select('amount')
+          .eq('user_id', user.id)
+          .eq('month', budgetMonth)
+          .eq('year', budgetYear)
 
         // Get categories to filter out income
         const { data: categories } = await supabase
@@ -116,20 +121,22 @@ export default function Dashboard() {
         })
 
         if (!transactions || transactions.length === 0) {
+          const totalBudgetForEmpty = (budgets || []).reduce((sum, b) => sum + (b.amount || 0), 0)
           setStats({
             totalSpent: 0,
-            budgetRemaining: Math.max(0, profile?.monthly_budget || 0),
+            budgetRemaining: Math.max(0, totalBudgetForEmpty),
             transactions: 0,
             daysTracked: 0,
             avgPerTransaction: 0,
             topCategory: 'N/A',
-            monthlyBudget: profile?.monthly_budget || 0
+            monthlyBudget: totalBudgetForEmpty
           })
           return
         }
 
         const totalSpent = transactions.reduce((sum, t) => sum + (t.amount || 0), 0)
-        const monthlyBudget = profile?.monthly_budget || 0
+        // Calculate total budget from actual category budgets (not the fixed monthly_budget)
+        const totalBudget = (budgets || []).reduce((sum, b) => sum + (b.amount || 0), 0)
 
         // Calculate days tracked
         const { data: datesData } = await supabase
@@ -175,12 +182,12 @@ export default function Dashboard() {
 
         setStats({
           totalSpent,
-          budgetRemaining: Math.max(0, monthlyBudget - totalSpent),
+          budgetRemaining: Math.max(0, totalBudget - totalSpent),
           transactions: transactions.length,
           daysTracked,
           avgPerTransaction: transactions.length > 0 ? totalSpent / transactions.length : 0,
           topCategory,
-          monthlyBudget
+          monthlyBudget: totalBudget
         })
       } catch (error) {
         console.error('Error fetching stats:', error)
