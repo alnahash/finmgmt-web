@@ -2,7 +2,7 @@ import { useContext, useEffect, useState } from 'react'
 import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
-import { getCurrencySymbol } from '../lib/utils'
+import { getCurrencySymbol, getMonthPeriodKey, getPeriodDateRange } from '../lib/utils'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 interface MonthlyData {
@@ -32,16 +32,18 @@ export default function SpendingVsSaving() {
     setLoading(true)
 
     try {
-      // Fetch profile for currency
+      // Fetch profile for currency and month_start_day
       const { data: profile } = await supabase
         .from('profiles')
-        .select('currency')
+        .select('currency, month_start_day')
         .eq('id', user.id)
         .single()
 
       if (profile) {
         setCurrency(profile.currency || 'USD')
       }
+
+      const monthStartDay = profile?.month_start_day || 1
 
       // Fetch all budgets
       const { data: budgets } = await supabase
@@ -68,23 +70,24 @@ export default function SpendingVsSaving() {
         (categories || []).map((c) => [c.id, c.type || 'expense'])
       )
 
-      // Group budgets by month
+      // Group budgets by period
       const budgetsByMonth = new Map<string, number>()
       ;(budgets || []).forEach((budget) => {
-        const key = `${budget.year}-${String(budget.month).padStart(2, '0')}`
-        const current = budgetsByMonth.get(key) || 0
-        budgetsByMonth.set(key, current + budget.amount)
+        // Convert calendar month/year to period key
+        const dateStr = `${budget.year}-${String(budget.month).padStart(2, '0')}-01`
+        const periodKey = getMonthPeriodKey(dateStr, monthStartDay)
+        const current = budgetsByMonth.get(periodKey) || 0
+        budgetsByMonth.set(periodKey, current + budget.amount)
       })
 
-      // Group transactions by month and sum spending
+      // Group transactions by period and sum spending
       const spendingByMonth = new Map<string, number>()
       ;(transactions || []).forEach((txn) => {
-        const date = new Date(txn.transaction_date)
-        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        const periodKey = getMonthPeriodKey(txn.transaction_date, monthStartDay)
         const catType = categoryTypeMap.get(txn.category_id)
         if (catType !== 'income') {
-          const current = spendingByMonth.get(key) || 0
-          spendingByMonth.set(key, current + txn.amount)
+          const current = spendingByMonth.get(periodKey) || 0
+          spendingByMonth.set(periodKey, current + txn.amount)
         }
       })
 
@@ -96,9 +99,10 @@ export default function SpendingVsSaving() {
       // Create monthly data array
       const monthlyArray: MonthlyData[] = Array.from(allMonths)
         .map((key) => {
-          const [yearStr, monthStr] = key.split('-')
-          const year = parseInt(yearStr)
-          const month = parseInt(monthStr)
+          const { startDate } = getPeriodDateRange(key)
+          const date = new Date(startDate)
+          const year = date.getFullYear()
+          const month = date.getMonth() + 1
 
           const budgetSet = budgetsByMonth.get(key) || 0
           const actualSpending = spendingByMonth.get(key) || 0

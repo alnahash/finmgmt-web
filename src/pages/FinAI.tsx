@@ -7,6 +7,7 @@ import {
   formatCurrency,
   getMonthPeriodKey,
   getPeriodDateRange,
+  getUniquePeriodKeys,
 } from '../lib/utils'
 
 interface Message {
@@ -461,35 +462,38 @@ export default function FinAI() {
   }
 
   const calculateCategoryTrends = (): CategoryTrend[] => {
-    const oneYearAgo = new Date()
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
-
     const trends: CategoryTrend[] = []
+
+    // Generate periods from transaction dates
+    const monthStartDay = profile?.month_start_day || 1
+    const transactionDates = transactions.map(t => t.transaction_date)
+    const allPeriodKeys = getUniquePeriodKeys(transactionDates, monthStartDay)
+
+    // Get the last 12 periods
+    const last12Periods = allPeriodKeys.slice(0, 12).reverse()
 
     // Calculate trends for each expense category
     categories.filter(c => c.type === 'expense').forEach(category => {
       const monthlyData: Array<{ month: string; amount: number }> = []
 
-      // Get spending for each of the last 12 months
-      for (let i = 11; i >= 0; i--) {
-        const targetDate = new Date()
-        targetDate.setMonth(targetDate.getMonth() - i)
+      // Get spending for each of the last 12 periods
+      last12Periods.forEach(periodKey => {
+        const { startDate, endDate } = getPeriodDateRange(periodKey)
+        const startDateObj = new Date(startDate)
+        const endDateObj = new Date(endDate)
 
-        const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1)
-        const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0, 23, 59, 59)
-
-        const monthTransactions = transactions.filter(
+        const periodTransactions = transactions.filter(
           t =>
             t.category_id === category.id &&
-            new Date(t.transaction_date) >= monthStart &&
-            new Date(t.transaction_date) <= monthEnd
+            new Date(t.transaction_date) >= startDateObj &&
+            new Date(t.transaction_date) <= endDateObj
         )
 
-        const amount = monthTransactions.reduce((sum, t) => sum + t.amount, 0)
-        const monthLabel = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`
+        const amount = periodTransactions.reduce((sum, t) => sum + t.amount, 0)
+        const monthLabel = `${startDateObj.getFullYear()}-${String(startDateObj.getMonth() + 1).padStart(2, '0')}`
 
         monthlyData.push({ month: monthLabel, amount })
-      }
+      })
 
       // Get last 3 months of data
       const last3Months = monthlyData.slice(-3)
@@ -759,36 +763,39 @@ export default function FinAI() {
   }
 
   const analyzeCategoryPatterns = (): CategoryPattern[] => {
-    const oneYearAgo = new Date()
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
-
     const patterns: CategoryPattern[] = []
+
+    // Generate periods from transaction dates
+    const monthStartDay = profile?.month_start_day || 1
+    const transactionDates = transactions.map(t => t.transaction_date)
+    const allPeriodKeys = getUniquePeriodKeys(transactionDates, monthStartDay)
+
+    // Get the last 12 periods
+    const last12Periods = allPeriodKeys.slice(0, 12).reverse()
 
     categories.filter(c => c.type === 'expense').forEach(category => {
       const monthlyData: Array<{ month: string; amount: number }> = []
       const amounts: number[] = []
 
-      // Get spending for each of the last 12 months
-      for (let i = 11; i >= 0; i--) {
-        const targetDate = new Date()
-        targetDate.setMonth(targetDate.getMonth() - i)
+      // Get spending for each of the last 12 periods
+      last12Periods.forEach(periodKey => {
+        const { startDate, endDate } = getPeriodDateRange(periodKey)
+        const startDateObj = new Date(startDate)
+        const endDateObj = new Date(endDate)
 
-        const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1)
-        const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0, 23, 59, 59)
-
-        const monthTransactions = transactions.filter(
+        const periodTransactions = transactions.filter(
           t =>
             t.category_id === category.id &&
-            new Date(t.transaction_date) >= monthStart &&
-            new Date(t.transaction_date) <= monthEnd
+            new Date(t.transaction_date) >= startDateObj &&
+            new Date(t.transaction_date) <= endDateObj
         )
 
-        const amount = monthTransactions.reduce((sum, t) => sum + t.amount, 0)
-        const monthLabel = `${targetDate.toLocaleDateString('en-US', { month: 'short' })}`
+        const amount = periodTransactions.reduce((sum, t) => sum + t.amount, 0)
+        const monthLabel = `${startDateObj.toLocaleDateString('en-US', { month: 'short' })}`
 
         monthlyData.push({ month: monthLabel, amount })
         if (amount > 0) amounts.push(amount)
-      }
+      })
 
       if (amounts.length === 0) return
 
