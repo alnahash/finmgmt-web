@@ -4,7 +4,7 @@ import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { getPeriodLabel, getPeriodDateRange, getUniquePeriodKeys, getCurrencySymbol } from '../lib/utils'
 import { TrendingDown, DollarSign, Target, Calendar, Percent, Tag, Info } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 interface Stats {
   totalSpent: number
@@ -35,7 +35,8 @@ export default function Dashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState('')
   const [periods, setPeriods] = useState<string[]>([])
   const [currency, setCurrency] = useState('USD')
-  const [trendData, setTrendData] = useState<Array<{ day: number; spent: number; target: number }>>([])
+  const [weekendDays, setWeekendDays] = useState<number[]>([6, 0]) // Default: Sat (6), Sun (0)
+  const [trendData, setTrendData] = useState<Array<{ day: number; spent: number; isWeekend: boolean }>>([])
 
   // Fetch initial data (profile, periods)
   useEffect(() => {
@@ -47,12 +48,15 @@ export default function Dashboard() {
         // Get profile
         const { data: profile } = await supabase
           .from('profiles')
-          .select('monthly_budget, month_start_day, currency')
+          .select('monthly_budget, month_start_day, currency, weekend_days')
           .eq('id', user.id)
           .single()
 
         if (profile) {
           setCurrency(profile.currency || 'USD')
+          if (profile.weekend_days && Array.isArray(profile.weekend_days)) {
+            setWeekendDays(profile.weekend_days)
+          }
         }
 
         // Get all transactions to generate available periods
@@ -217,7 +221,7 @@ export default function Dashboard() {
           }
         })
 
-        // Calculate spending trend (cumulative daily spending)
+        // Calculate spending trend (daily spending with weekend highlighting)
         const periodStart = new Date(startDate)
         const periodEndDate = new Date(endDate)
         const daysInPeriod = Math.ceil((periodEndDate.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
@@ -240,24 +244,25 @@ export default function Dashboard() {
           }
         })
 
-        // Build cumulative spending data
-        let cumulativeSpent = 0
+        // Build daily spending data with weekend flags
         const trendChartData = []
         for (let i = 1; i <= daysInPeriod; i++) {
           const currentDate = new Date(periodStart)
           currentDate.setDate(currentDate.getDate() + i - 1)
           const dateStr = currentDate.toISOString().split('T')[0]
 
-          const dailySpent = spendingByDate.get(dateStr) || 0
-          cumulativeSpent += dailySpent
+          // Get day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+          const dayOfWeek = currentDate.getDay()
 
-          // Target is linear progression from 0 to totalBudget
-          const targetSpent = (totalBudget / daysInPeriod) * i
+          // Check if this day is a weekend based on user's weekend_days setting
+          const isWeekend = weekendDays.includes(dayOfWeek)
+
+          const dailySpent = spendingByDate.get(dateStr) || 0
 
           trendChartData.push({
             day: i,
-            spent: Math.round(cumulativeSpent * 100) / 100,
-            target: Math.round(targetSpent * 100) / 100
+            spent: Math.round(dailySpent * 100) / 100,
+            isWeekend
           })
         }
 
@@ -399,12 +404,12 @@ export default function Dashboard() {
         {/* Spending Trend Chart */}
         {!loading && selectedPeriod && trendData.length > 0 && (
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6 mb-8">
-            <h2 className="text-xl font-bold text-white mb-6">Spending Trend</h2>
+            <h2 className="text-xl font-bold text-white mb-6">Daily Spending Pattern</h2>
             <p className="text-slate-400 text-sm mb-4">
-              Cumulative spending vs. your daily budget target. Stay below the green line to reach your goal.
+              Your daily spending across the period. <span className="text-blue-400">Blue bars</span> show weekdays, <span className="text-red-400">red bars</span> show weekends. Identify high-spending days to optimize your budget.
             </p>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={trendData}>
+              <BarChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                 <XAxis
                   dataKey="day"
@@ -419,27 +424,28 @@ export default function Dashboard() {
                   contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
                   formatter={(value) => `${getCurrencySymbol(currency)} ${Number(value).toFixed(2)}`}
                   labelFormatter={(label) => `Day ${label}`}
+                  content={({ active, payload }) => {
+                    if (active && payload && payload[0]) {
+                      const data = payload[0].payload
+                      return (
+                        <div className="bg-slate-900 border border-slate-700 rounded p-2 text-sm">
+                          <p className="text-slate-300">Day {data.day}</p>
+                          <p className="text-white font-semibold">Spent: {getCurrencySymbol(currency)} {data.spent.toFixed(2)}</p>
+                          <p className={`text-xs ${data.isWeekend ? 'text-red-400' : 'text-blue-400'}`}>
+                            {data.isWeekend ? 'Weekend' : 'Weekday'}
+                          </p>
+                        </div>
+                      )
+                    }
+                    return null
+                  }}
                 />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="target"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  name="Budget Target"
-                  isAnimationActive={false}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="spent"
-                  stroke={stats.totalSpent > stats.monthlyBudget ? '#ef4444' : '#f97316'}
-                  strokeWidth={2}
-                  name="Actual Spending"
-                  isAnimationActive={false}
-                  dot={false}
-                />
-              </LineChart>
+                <Bar dataKey="spent" radius={[4, 4, 0, 0]}>
+                  {trendData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.isWeekend ? '#ef4444' : '#3b82f6'} />
+                  ))}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </div>
         )}

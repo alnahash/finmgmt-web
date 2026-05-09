@@ -22,6 +22,7 @@ interface Profile {
   month_start_day: number
   monthly_budget: number
   theme: 'light' | 'dark'
+  weekend_days: number[]
 }
 
 export default function Settings() {
@@ -93,6 +94,7 @@ export default function Settings() {
           month_start_day: profile.month_start_day,
           monthly_budget: profile.monthly_budget,
           theme: profile.theme,
+          weekend_days: profile.weekend_days,
         })
         .eq('id', user.id)
 
@@ -314,6 +316,40 @@ export default function Settings() {
                   ))}
                 </select>
                 <p className="text-xs text-slate-400 mt-1">When should your monthly budget reset?</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Weekend Days
+                </label>
+                <p className="text-xs text-slate-400 mb-3">Select which days are weekends in your region</p>
+                <div className="space-y-2">
+                  {[
+                    { day: 0, label: 'Sunday' },
+                    { day: 1, label: 'Monday' },
+                    { day: 2, label: 'Tuesday' },
+                    { day: 3, label: 'Wednesday' },
+                    { day: 4, label: 'Thursday' },
+                    { day: 5, label: 'Friday' },
+                    { day: 6, label: 'Saturday' },
+                  ].map(({ day, label }) => (
+                    <label key={day} className="flex items-center space-x-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={profile.weekend_days.includes(day)}
+                        onChange={(e) => {
+                          const newWeekendDays = e.target.checked
+                            ? [...profile.weekend_days, day].sort()
+                            : profile.weekend_days.filter((d) => d !== day)
+                          setProfile({ ...profile, weekend_days: newWeekendDays })
+                        }}
+                        className="w-4 h-4 rounded accent-primary-500"
+                      />
+                      <span className="text-slate-300 text-sm">{label}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400 mt-2">Your Dashboard will use this to highlight weekend spending in charts</p>
               </div>
 
               <div>
