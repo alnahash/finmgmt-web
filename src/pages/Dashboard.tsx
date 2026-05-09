@@ -9,6 +9,7 @@ interface Stats {
   totalSpent: number
   totalIncome: number
   budgetRemaining: number
+  daysRemaining: number
   transactions: number
   daysTracked: number
   avgPerTransaction: number
@@ -22,6 +23,7 @@ export default function Dashboard() {
     totalSpent: 0,
     totalIncome: 0,
     budgetRemaining: 0,
+    daysRemaining: 0,
     transactions: 0,
     daysTracked: 0,
     avgPerTransaction: 0,
@@ -88,6 +90,11 @@ export default function Dashboard() {
       try {
         const { startDate, endDate } = getPeriodDateRange(selectedPeriod)
 
+        // Calculate days remaining in the period
+        const today = new Date()
+        const periodEnd = new Date(endDate)
+        const daysRemainingCalc = Math.max(0, Math.ceil((periodEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
+
         // Get transactions for the period
         const { data: allTransactions } = await supabase
           .from('transactions')
@@ -152,6 +159,7 @@ export default function Dashboard() {
             totalSpent: 0,
             totalIncome,
             budgetRemaining: Math.max(0, totalBudgetForEmpty),
+            daysRemaining: daysRemainingCalc,
             transactions: 0,
             daysTracked: 0,
             avgPerTransaction: 0,
@@ -211,6 +219,7 @@ export default function Dashboard() {
           totalSpent,
           totalIncome,
           budgetRemaining: Math.max(0, totalBudget - totalSpent),
+          daysRemaining: daysRemainingCalc,
           transactions: transactions.length,
           daysTracked,
           avgPerTransaction: transactions.length > 0 ? totalSpent / transactions.length : 0,
@@ -304,7 +313,7 @@ export default function Dashboard() {
               <div className="flex-1">
                 <h2 className="text-xl font-bold text-white mb-3">Budget Status</h2>
                 <p className="text-slate-300 text-sm leading-relaxed">
-                  Your total income this period is <span className="font-semibold text-green-400">{getCurrencySymbol(currency)} {stats.totalIncome.toFixed(2)}</span>, but you set your budget to spend <span className="font-semibold">{getCurrencySymbol(currency)} {stats.monthlyBudget.toFixed(2)}</span>. Currently you are spending <span className="font-semibold text-orange-400">{getCurrencySymbol(currency)} {stats.totalSpent.toFixed(2)}</span> and the remaining is <span className="font-semibold text-primary-400">{getCurrencySymbol(currency)} {stats.budgetRemaining.toFixed(2)}</span>.
+                  You've spent <span className="font-semibold text-orange-400">{getCurrencySymbol(currency)} {stats.totalSpent.toFixed(2)}</span> so far and <span className="font-semibold text-primary-400">{getCurrencySymbol(currency)} {stats.budgetRemaining.toFixed(2)}</span> remains. With <span className="font-semibold">{stats.daysRemaining}</span> days left, if you spend <span className="font-semibold text-green-400">{getCurrencySymbol(currency)} {(stats.daysRemaining > 0 ? stats.budgetRemaining / stats.daysRemaining : 0).toFixed(2)}</span> daily you'll reach your target.
                 </p>
               </div>
               <div className="text-right mt-2 md:mt-0">
