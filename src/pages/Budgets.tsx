@@ -91,6 +91,7 @@ export default function Budgets() {
 
   // UI State
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null)
   const [creatingBudgetForCategory, setCreatingBudgetForCategory] = useState<string | null>(null)
   const [editFormData, setEditFormData] = useState<BudgetFormData>({ amount: '' })
@@ -551,6 +552,16 @@ export default function Budgets() {
       newExpanded.add(groupId)
     }
     setExpandedGroups(newExpanded)
+  }
+
+  const toggleCardExpanded = (categoryId: string) => {
+    const newExpanded = new Set(expandedCards)
+    if (newExpanded.has(categoryId)) {
+      newExpanded.delete(categoryId)
+    } else {
+      newExpanded.add(categoryId)
+    }
+    setExpandedCards(newExpanded)
   }
 
   // Calculate days remaining in the current period
@@ -1395,97 +1406,115 @@ export default function Budgets() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {budgetStats.map((stat) => (
-                  <div
-                    key={stat.categoryId}
-                    className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6 hover:border-slate-600 transition"
-                  >
-                    {/* Card Header */}
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        <span className="text-3xl">{stat.categoryIcon}</span>
-                        <div>
-                          <h3 className="text-white font-semibold">{stat.categoryName}</h3>
-                          <p className={`text-xs font-medium ${
+                {budgetStats.map((stat) => {
+                  const isExpanded = expandedCards.has(stat.categoryId)
+
+                  return (
+                    <div
+                      key={stat.categoryId}
+                      className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg overflow-hidden hover:border-slate-600 transition"
+                    >
+                      {/* Card Header - Always Visible */}
+                      <button
+                        onClick={() => toggleCardExpanded(stat.categoryId)}
+                        className="w-full p-4 flex items-center justify-between hover:bg-slate-700/50 transition"
+                      >
+                        <div className="flex items-center space-x-3 flex-1">
+                          <span className="text-3xl">{stat.categoryIcon}</span>
+                          <div className="text-left">
+                            <h3 className="text-white font-semibold">{stat.categoryName}</h3>
+                            <p className={`text-xs font-medium ${
+                              stat.statusColor === 'green' ? 'text-green-400' :
+                              stat.statusColor === 'yellow' ? 'text-orange-400' :
+                              'text-red-400'
+                            }`}>
+                              {stat.status === 'on-track' ? '✓ On Track' :
+                               stat.status === 'warning' ? '⚠ Warning' :
+                               '✗ Exceeded'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {isExpanded ? (
+                            <ChevronUp className="w-5 h-5 text-slate-400" />
+                          ) : (
+                            <ChevronDown className="w-5 h-5 text-slate-400" />
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Progress Bar - Always Visible */}
+                      <div className="px-4 pb-4 border-t border-slate-700">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-slate-400 uppercase tracking-wide">Progress</span>
+                          <span className={`text-xs font-bold ${
                             stat.statusColor === 'green' ? 'text-green-400' :
                             stat.statusColor === 'yellow' ? 'text-orange-400' :
                             'text-red-400'
                           }`}>
-                            {stat.status === 'on-track' ? '✓ On Track' :
-                             stat.status === 'warning' ? '⚠ Warning' :
-                             '✗ Exceeded'}
-                          </p>
+                            {stat.percentageUsed.toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              stat.statusColor === 'green' ? 'bg-green-500' :
+                              stat.statusColor === 'yellow' ? 'bg-orange-500' :
+                              'bg-red-500'
+                            }`}
+                            style={{ width: `${Math.min(stat.percentageUsed, 100)}%` }}
+                          />
                         </div>
                       </div>
+
+                      {/* Expandable Details */}
+                      {isExpanded && (
+                        <>
+                          {/* Budget Info */}
+                          <div className="px-4 py-3 border-t border-slate-700 space-y-3">
+                            {/* Budget Amount */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400 text-sm">Budget</span>
+                              <span className="text-white font-semibold">
+                                {getCurrencySymbol(currency)}{stat.budgetAmount.toFixed(2)}
+                              </span>
+                            </div>
+
+                            {/* Actual Spent */}
+                            <div className="flex justify-between items-center">
+                              <span className="text-slate-400 text-sm">Spent</span>
+                              <span className="text-white font-semibold">
+                                {getCurrencySymbol(currency)}{stat.actualSpent.toFixed(2)}
+                              </span>
+                            </div>
+
+                            {/* Remaining/Overage */}
+                            <div className="flex justify-between items-center pt-2 border-t border-slate-700">
+                              <span className="text-slate-400 text-sm">
+                                {stat.remaining >= 0 ? 'Remaining' : 'Over by'}
+                              </span>
+                              <span className={`font-semibold ${
+                                stat.remaining >= 0 ? 'text-green-400' : 'text-red-400'
+                              }`}>
+                                {getCurrencySymbol(currency)}{Math.abs(stat.remaining).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Action Button */}
+                          <div className="px-4 py-3 border-t border-slate-700">
+                            <button
+                              onClick={() => setViewMode('grouped')}
+                              className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white py-2 rounded-lg transition text-sm font-medium"
+                            >
+                              Edit Budget
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
-
-                    {/* Budget Info */}
-                    <div className="space-y-3 mb-4">
-                      {/* Budget Amount */}
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-400 text-sm">Budget</span>
-                        <span className="text-white font-semibold">
-                          {getCurrencySymbol(currency)}{stat.budgetAmount.toFixed(2)}
-                        </span>
-                      </div>
-
-                      {/* Actual Spent */}
-                      <div className="flex justify-between items-center">
-                        <span className="text-slate-400 text-sm">Spent</span>
-                        <span className="text-white font-semibold">
-                          {getCurrencySymbol(currency)}{stat.actualSpent.toFixed(2)}
-                        </span>
-                      </div>
-
-                      {/* Remaining/Overage */}
-                      <div className="flex justify-between items-center pt-2 border-t border-slate-700">
-                        <span className="text-slate-400 text-sm">
-                          {stat.remaining >= 0 ? 'Remaining' : 'Over by'}
-                        </span>
-                        <span className={`font-semibold ${
-                          stat.remaining >= 0 ? 'text-green-400' : 'text-red-400'
-                        }`}>
-                          {getCurrencySymbol(currency)}{Math.abs(stat.remaining).toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-slate-400 uppercase tracking-wide">Progress</span>
-                        <span className={`text-xs font-bold ${
-                          stat.statusColor === 'green' ? 'text-green-400' :
-                          stat.statusColor === 'yellow' ? 'text-orange-400' :
-                          'text-red-400'
-                        }`}>
-                          {stat.percentageUsed.toFixed(0)}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            stat.statusColor === 'green' ? 'bg-green-500' :
-                            stat.statusColor === 'yellow' ? 'bg-orange-500' :
-                            'bg-red-500'
-                          }`}
-                          style={{ width: `${Math.min(stat.percentageUsed, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Action Button */}
-                    <button
-                      onClick={() => {
-                        setViewMode('grouped')
-                        // Focus will naturally move to the grouped view
-                      }}
-                      className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white py-2 rounded-lg transition text-sm font-medium"
-                    >
-                      Edit Budget
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </>
