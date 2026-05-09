@@ -677,6 +677,7 @@ export default function FinAI() {
     return 'Scenario analysis ready. Please let me know specific spending adjustments to model.'
   }
 
+
   const formatTrendAnalysis = (trends: CategoryTrend[]): string => {
     if (trends.length === 0) return 'Not enough data to analyze trends'
 
@@ -1193,6 +1194,38 @@ export default function FinAI() {
           .join('\n')
         : 'No category budgets set yet'
 
+      // Calculate specific, actionable recommendations (improvement: specific daily limits)
+      const currentPeriodForRecommendations = getCurrentPeriod()
+      const endDateObj = new Date(currentPeriodForRecommendations.endDate)
+      const todayObj = new Date()
+      const daysRemainingInPeriod = Math.ceil((endDateObj.getTime() - todayObj.getTime()) / (1000 * 60 * 60 * 24))
+
+      // Get categories over budget with specific daily recommendations
+      const overBudgetCategoriesWithDaily = categoryBudgetPerformance
+        .filter(p => p.isOver)
+        .map(cat => {
+          const overage = Math.abs(cat.remaining)
+          const reductionNeeded = daysRemainingInPeriod > 0 ? overage / daysRemainingInPeriod : overage
+          return {
+            ...cat,
+            overage,
+            reductionNeeded,
+            daysRemaining: daysRemainingInPeriod,
+          }
+        })
+        .sort((a, b) => b.overage - a.overage)
+
+      // Format specific recommendations text
+      const specificRecommendationsText = overBudgetCategoriesWithDaily.length > 0
+        ? overBudgetCategoriesWithDaily
+          .slice(0, 3)
+          .map(cat => {
+            const percentOver = ((cat.actualSpent - cat.budgetAmount) / cat.budgetAmount * 100).toFixed(1)
+            return `${cat.categoryIcon} ${cat.categoryName}: Over by ${formatCurrency(cat.overage, profile.currency)} (${percentOver}% over). Target: ${formatCurrency(cat.reductionNeeded, profile.currency)}/day for next ${cat.daysRemaining} days.`
+          })
+          .join('\n')
+        : 'All categories are within budget or no budgets set.'
+
       // Phase 3: Calculate spending trends and forecasts
       const categoryTrends = calculateCategoryTrends()
       const trendAnalysisText = formatTrendAnalysis(categoryTrends)
@@ -1249,6 +1282,11 @@ ${budgetBreakdownText}
 - Categories over budget will show 🔴 OVER
 - Categories at 80%+ of budget will show 🟡 WARNING
 - Categories under budget will show 🟢 OK
+
+Specific Daily Budget Recommendations (Days Remaining: ${daysRemainingInPeriod}):
+${specificRecommendationsText}
+- For categories over budget, the daily target shows exactly how much they can spend/day to get back on track
+- Total budget remaining: ${formatCurrency(budgetRemaining, profile.currency)}
 
 Spending Trends (Last 3 Months):
 ${trendAnalysisText}
@@ -1341,6 +1379,16 @@ BUDGET ANALYSIS:
 - Flag categories at 80%+ of budget (🟡 WARNING)
 - Highlight categories performing well (🟢 OK)
 - Suggest reallocation if user is approaching overall budget
+
+SPECIFIC DAILY BUDGET RECOMMENDATIONS (IMPROVEMENT C - ACTIONABLE):
+- Review the "Specific Daily Budget Recommendations" section above
+- When a category is over budget, provide the exact daily limit they need to achieve to get back on track
+- Format like: "Your Dining is over by BHD 150. To get back on track over the next 15 days, reduce dining to BHD 10/day."
+- Always include the category name, how much they're over by, the number of days remaining, and the specific daily limit
+- For multiple over-budget categories, prioritize the highest overages first
+- Use format: "Reduce {category} spending and do not spend more than {daily_limit} on {category} daily basis to reach your goal"
+- Be specific and use exact numbers from the Specific Daily Budget Recommendations section above
+- Provide exact calculations: "You spent X so far, have Y left, need to reduce by Z daily"
 
 TREND ANALYSIS:
 - Review the Spending Trends section showing last 3 months of data
@@ -1475,7 +1523,24 @@ Reduce dining by 20% → Save BHD 2,400/year
 
 ---
 
-**Summary:** Focus on dining and transportation for maximum savings impact.`
+**Summary:** Focus on dining and transportation for maximum savings impact.
+
+Example 4 - Specific Daily Budget Recommendations (IMPROVEMENT C):
+## Budget Status Alert
+
+### 🔴 Dining - Over Budget
+Your spending pace suggests you'll exceed your budget by month end. With 15 days left:
+- **Current status:** You've spent BHD 450 out of BHD 400 budget (BHD 50 over)
+- **Recommendation:** Reduce dining to **BHD 10/day** for the next 15 days to get back on track
+- **Action:** This means cutting daily dining by BHD 5 compared to your current pace
+
+### 🟡 Transport - At Risk
+- **Current status:** You've spent BHD 155 out of BHD 150 budget (5% over)
+- **Recommendation:** Keep transport to **BHD 3/day** or less for remaining 15 days to avoid exceeding budget
+- **Action:** Use public transport instead of ride-sharing where possible
+
+### Summary
+Focus on reducing **Dining** (highest impact). Cutting BHD 5/day from dining will keep you on budget by month end.`
 
       const groqResponse = await callGroqAPI(systemPrompt, conversationHistoryForGroq)
       if (groqResponse) {
