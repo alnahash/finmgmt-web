@@ -4,6 +4,7 @@ import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { getPeriodLabel, getPeriodDateRange, getUniquePeriodKeys, getCurrencySymbol } from '../lib/utils'
 import { TrendingDown, DollarSign, Target, Calendar, Percent, Tag, Info } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 interface Stats {
   totalSpent: number
@@ -34,6 +35,7 @@ export default function Dashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState('')
   const [periods, setPeriods] = useState<string[]>([])
   const [currency, setCurrency] = useState('USD')
+  const [trendData, setTrendData] = useState<Array<{ day: number; spent: number; target: number }>>([])
 
   // Fetch initial data (profile, periods)
   useEffect(() => {
@@ -215,6 +217,52 @@ export default function Dashboard() {
           }
         })
 
+        // Calculate spending trend (cumulative daily spending)
+        const periodStart = new Date(startDate)
+        const periodEndDate = new Date(endDate)
+        const daysInPeriod = Math.ceil((periodEndDate.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+
+        // Get all transactions with dates for trend
+        const { data: transactionsWithDates } = await supabase
+          .from('transactions')
+          .select('amount, category_id, transaction_date')
+          .eq('user_id', user.id)
+          .gte('transaction_date', startDate)
+          .lte('transaction_date', endDate)
+
+        // Group transactions by date and calculate daily spending
+        const spendingByDate = new Map<string, number>()
+        ;(transactionsWithDates || []).forEach((txn) => {
+          const catType = categoryTypeMap.get(txn.category_id)
+          if (catType !== 'income') {
+            const current = spendingByDate.get(txn.transaction_date) || 0
+            spendingByDate.set(txn.transaction_date, current + txn.amount)
+          }
+        })
+
+        // Build cumulative spending data
+        let cumulativeSpent = 0
+        const trendChartData = []
+        for (let i = 1; i <= daysInPeriod; i++) {
+          const currentDate = new Date(periodStart)
+          currentDate.setDate(currentDate.getDate() + i - 1)
+          const dateStr = currentDate.toISOString().split('T')[0]
+
+          const dailySpent = spendingByDate.get(dateStr) || 0
+          cumulativeSpent += dailySpent
+
+          // Target is linear progression from 0 to totalBudget
+          const targetSpent = (totalBudget / daysInPeriod) * i
+
+          trendChartData.push({
+            day: i,
+            spent: Math.round(cumulativeSpent * 100) / 100,
+            target: Math.round(targetSpent * 100) / 100
+          })
+        }
+
+        setTrendData(trendChartData)
+
         setStats({
           totalSpent,
           totalIncome,
@@ -345,6 +393,54 @@ export default function Dashboard() {
                 </span>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Spending Trend Chart */}
+        {!loading && selectedPeriod && trendData.length > 0 && (
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6 mb-8">
+            <h2 className="text-xl font-bold text-white mb-6">Spending Trend</h2>
+            <p className="text-slate-400 text-sm mb-4">
+              Cumulative spending vs. your daily budget target. Stay below the green line to reach your goal.
+            </p>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis
+                  dataKey="day"
+                  stroke="#94a3b8"
+                  label={{ value: 'Days in Period', position: 'insideBottomRight', offset: -5, fill: '#94a3b8' }}
+                />
+                <YAxis
+                  stroke="#94a3b8"
+                  label={{ value: `${getCurrencySymbol(currency)}`, angle: -90, position: 'insideLeft', fill: '#94a3b8' }}
+                />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
+                  formatter={(value) => `${getCurrencySymbol(currency)} ${Number(value).toFixed(2)}`}
+                  labelFormatter={(label) => `Day ${label}`}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="target"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  name="Budget Target"
+                  isAnimationActive={false}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="spent"
+                  stroke={stats.totalSpent > stats.monthlyBudget ? '#ef4444' : '#f97316'}
+                  strokeWidth={2}
+                  name="Actual Spending"
+                  isAnimationActive={false}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         )}
 
