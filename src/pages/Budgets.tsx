@@ -96,7 +96,8 @@ export default function Budgets() {
   const [creatingBudgetForCategory, setCreatingBudgetForCategory] = useState<string | null>(null)
   const [editFormData, setEditFormData] = useState<BudgetFormData>({ amount: '' })
   const [showCopyConfirm, setShowCopyConfirm] = useState(false)
-  const [viewMode, setViewMode] = useState<'grouped' | 'list' | 'cards'>('grouped')
+  const [viewMode, setViewMode] = useState<'grouped' | 'list' | 'cards'>('cards')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'on-track' | 'warning' | 'exceeded'>('all')
   const [totalBudgetSet, setTotalBudgetSet] = useState(0)
   const [totalSpent, setTotalSpent] = useState(0)
   const [categorySpending, setCategorySpending] = useState<Map<string, number>>(new Map())
@@ -714,6 +715,23 @@ export default function Budgets() {
     } else {
       return { percentage, color: 'bg-red-500', textColor: 'text-red-400', label: 'Over Budget' }
     }
+  }
+
+  // Get status counts for filter badges
+  const getStatusCounts = () => {
+    const counts = {
+      all: budgetStats.length,
+      'on-track': budgetStats.filter(s => s.status === 'on-track').length,
+      'warning': budgetStats.filter(s => s.status === 'warning').length,
+      'exceeded': budgetStats.filter(s => s.status === 'exceeded').length,
+    }
+    return counts
+  }
+
+  // Filter budget stats based on selected status
+  const getFilteredStats = () => {
+    if (statusFilter === 'all') return budgetStats
+    return budgetStats.filter(stat => stat.status === statusFilter)
   }
 
   const grouped = groupBudgetsByCategory()
@@ -1394,6 +1412,59 @@ export default function Budgets() {
               </div>
             )}
 
+            {/* Status Filter Buttons */}
+            {!loading && budgetStats.length > 0 && (
+              <div className="mb-6 flex flex-wrap gap-2">
+                {(() => {
+                  const counts = getStatusCounts()
+                  return (
+                    <>
+                      <button
+                        onClick={() => setStatusFilter('all')}
+                        className={`px-4 py-2 rounded-lg font-medium transition ${
+                          statusFilter === 'all'
+                            ? 'bg-primary-600 text-white'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        }`}
+                      >
+                        All ({counts.all})
+                      </button>
+                      <button
+                        onClick={() => setStatusFilter('on-track')}
+                        className={`px-4 py-2 rounded-lg font-medium transition ${
+                          statusFilter === 'on-track'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        }`}
+                      >
+                        ✓ On Track ({counts['on-track']})
+                      </button>
+                      <button
+                        onClick={() => setStatusFilter('warning')}
+                        className={`px-4 py-2 rounded-lg font-medium transition ${
+                          statusFilter === 'warning'
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        }`}
+                      >
+                        ⚠ Warning ({counts.warning})
+                      </button>
+                      <button
+                        onClick={() => setStatusFilter('exceeded')}
+                        className={`px-4 py-2 rounded-lg font-medium transition ${
+                          statusFilter === 'exceeded'
+                            ? 'bg-red-600 text-white'
+                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                        }`}
+                      >
+                        ✗ Over Budget ({counts.exceeded})
+                      </button>
+                    </>
+                  )
+                })()}
+              </div>
+            )}
+
             {loading ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -1404,9 +1475,13 @@ export default function Budgets() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
                 <p className="text-slate-400">No budgets set yet. Click on a category in Grouped or List view to set a budget.</p>
               </div>
+            ) : getFilteredStats().length === 0 ? (
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
+                <p className="text-slate-400">No budgets match the selected filter.</p>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {budgetStats.map((stat) => {
+                {getFilteredStats().map((stat) => {
                   const isExpanded = expandedCards.has(stat.categoryId)
 
                   return (
