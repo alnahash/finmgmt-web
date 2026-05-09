@@ -820,14 +820,14 @@ export default function Budgets() {
             {/* Total Budget */}
             <div className="bg-gradient-to-br from-blue-900/30 to-blue-900/10 border border-blue-700/50 rounded-lg p-6">
               <p className="text-blue-300 text-sm font-medium uppercase tracking-wide mb-2">Monthly Budget Set</p>
-              <p className="text-3xl font-bold text-white mb-2">{getCurrencySymbol(currency)}{totalBudgetSet.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-white mb-2">{getCurrencySymbol(currency)} {totalBudgetSet.toFixed(2)}</p>
               <p className="text-xs text-blue-300">Your total spending plan</p>
             </div>
 
             {/* Total Spent */}
             <div className="bg-gradient-to-br from-orange-900/30 to-orange-900/10 border border-orange-700/50 rounded-lg p-6">
               <p className="text-orange-300 text-sm font-medium uppercase tracking-wide mb-2">Actual Spending</p>
-              <p className="text-3xl font-bold text-white mb-2">{getCurrencySymbol(currency)}{totalSpent.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-white mb-2">{getCurrencySymbol(currency)} {totalSpent.toFixed(2)}</p>
               <p className="text-xs text-orange-300">
                 {totalBudgetSet > 0
                   ? `${Math.round((totalSpent / totalBudgetSet) * 100)}% of budget`
@@ -887,8 +887,8 @@ export default function Budgets() {
               />
             </div>
             <div className="flex justify-between mt-3 text-xs text-slate-400">
-              <span>Spent: {getCurrencySymbol(currency)}{totalSpent.toFixed(2)}</span>
-              <span>Budget: {getCurrencySymbol(currency)}{totalBudgetSet.toFixed(2)}</span>
+              <span>Spent: {getCurrencySymbol(currency)} {totalSpent.toFixed(2)}</span>
+              <span>Budget: {getCurrencySymbol(currency)} {totalBudgetSet.toFixed(2)}</span>
             </div>
           </div>
         )}
@@ -1055,7 +1055,7 @@ export default function Budgets() {
                                       <div>
                                         <p className="text-xs text-slate-400 uppercase tracking-wide">Budget</p>
                                         <p className="text-white font-semibold">
-                                          {getCurrencySymbol(currency)}{budget.amount.toFixed(2)}
+                                          {getCurrencySymbol(currency)} {budget.amount.toFixed(2)}
                                         </p>
                                       </div>
                                       <div className="flex items-center space-x-2">
@@ -1098,7 +1098,7 @@ export default function Budgets() {
                                             <div>
                                               <span className="text-slate-400">Spent: </span>
                                               <span className="text-white font-medium">
-                                                {getCurrencySymbol(currency)}{spending.toFixed(2)}
+                                                {getCurrencySymbol(currency)} {spending.toFixed(2)}
                                               </span>
                                             </div>
                                             <div className={`font-semibold ${status.textColor}`}>
@@ -1112,7 +1112,7 @@ export default function Budgets() {
                                               {savings >= 0 ? '✓ Savings:' : '⚠ Over by:'}
                                             </span>
                                             <span className={`font-semibold ${savings >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                              {getCurrencySymbol(currency)}{Math.abs(savings).toFixed(2)}
+                                              {getCurrencySymbol(currency)} {Math.abs(savings).toFixed(2)}
                                             </span>
                                           </div>
                                         </div>
@@ -1327,7 +1327,7 @@ export default function Budgets() {
                   <div>
                     <p className="text-primary-300 text-xs font-medium uppercase tracking-wide">Total Budget</p>
                     <p className="text-white font-semibold text-lg">
-                      {getCurrencySymbol(currency)}{monthSummary.totalBudget.toFixed(2)}
+                      {getCurrencySymbol(currency)} {monthSummary.totalBudget.toFixed(2)}
                     </p>
                   </div>
 
@@ -1335,7 +1335,7 @@ export default function Budgets() {
                   <div>
                     <p className="text-primary-300 text-xs font-medium uppercase tracking-wide">Spent</p>
                     <p className="text-white font-semibold text-lg">
-                      {getCurrencySymbol(currency)}{monthSummary.totalSpent.toFixed(2)}
+                      {getCurrencySymbol(currency)} {monthSummary.totalSpent.toFixed(2)}
                     </p>
                   </div>
 
@@ -1551,7 +1551,7 @@ export default function Budgets() {
                             <div className="flex justify-between items-center">
                               <span className="text-slate-400 text-sm">Budget</span>
                               <span className="text-white font-semibold">
-                                {getCurrencySymbol(currency)}{stat.budgetAmount.toFixed(2)}
+                                {getCurrencySymbol(currency)} {stat.budgetAmount.toFixed(2)}
                               </span>
                             </div>
 
@@ -1559,7 +1559,7 @@ export default function Budgets() {
                             <div className="flex justify-between items-center">
                               <span className="text-slate-400 text-sm">Spent</span>
                               <span className="text-white font-semibold">
-                                {getCurrencySymbol(currency)}{stat.actualSpent.toFixed(2)}
+                                {getCurrencySymbol(currency)} {stat.actualSpent.toFixed(2)}
                               </span>
                             </div>
 
@@ -1571,7 +1571,7 @@ export default function Budgets() {
                               <span className={`font-semibold ${
                                 stat.remaining >= 0 ? 'text-green-400' : 'text-red-400'
                               }`}>
-                                {getCurrencySymbol(currency)}{Math.abs(stat.remaining).toFixed(2)}
+                                {getCurrencySymbol(currency)} {Math.abs(stat.remaining).toFixed(2)}
                               </span>
                             </div>
                           </div>

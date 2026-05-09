@@ -276,12 +276,12 @@ export default function Dashboard() {
               <div>
                 <h2 className="text-xl font-bold text-white mb-2">Budget Status</h2>
                 <p className="text-slate-400 text-sm">
-                  Spent {getCurrencySymbol(currency)}{stats.totalSpent.toFixed(2)} of {getCurrencySymbol(currency)}{stats.monthlyBudget.toFixed(2)}
+                  Spent {getCurrencySymbol(currency)} {stats.totalSpent.toFixed(2)} of {getCurrencySymbol(currency)} {stats.monthlyBudget.toFixed(2)}
                 </p>
               </div>
               <div className="text-right mt-2 md:mt-0">
                 <p className={`text-3xl font-bold ${budgetStatus.textColor}`}>
-                  {getCurrencySymbol(currency)}{stats.budgetRemaining.toFixed(2)}
+                  {getCurrencySymbol(currency)} {stats.budgetRemaining.toFixed(2)}
                 </p>
                 <p className="text-slate-400 text-sm">Savings remaining</p>
               </div>
@@ -304,7 +304,7 @@ export default function Dashboard() {
               </span>
               {stats.totalSpent > stats.monthlyBudget && (
                 <span className="text-red-400 text-sm font-medium">
-                  Over by {getCurrencySymbol(currency)}{(stats.totalSpent - stats.monthlyBudget).toFixed(2)}
+                  Over by {getCurrencySymbol(currency)} {(stats.totalSpent - stats.monthlyBudget).toFixed(2)}
                 </span>
               )}
             </div>
@@ -329,7 +329,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-400 text-sm">Total Spent</p>
-                  <p className="text-3xl font-bold text-white mt-2">{getCurrencySymbol(currency)}{stats.totalSpent.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-white mt-2">{getCurrencySymbol(currency)} {stats.totalSpent.toFixed(2)}</p>
                 </div>
                 <TrendingDown className="w-10 h-10 text-primary-500" />
               </div>
@@ -340,7 +340,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-400 text-sm">Budget Remaining</p>
-                  <p className="text-3xl font-bold text-white mt-2">{getCurrencySymbol(currency)}{stats.budgetRemaining.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-white mt-2">{getCurrencySymbol(currency)} {stats.budgetRemaining.toFixed(2)}</p>
                 </div>
                 <DollarSign className="w-10 h-10 text-green-500" />
               </div>
@@ -373,7 +373,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-slate-400 text-sm">Avg Per Transaction</p>
-                  <p className="text-3xl font-bold text-white mt-2">{getCurrencySymbol(currency)}{stats.avgPerTransaction.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-white mt-2">{getCurrencySymbol(currency)} {stats.avgPerTransaction.toFixed(2)}</p>
                 </div>
                 <Percent className="w-10 h-10 text-blue-500" />
               </div>

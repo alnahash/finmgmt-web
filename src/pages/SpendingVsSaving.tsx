@@ -175,7 +175,7 @@ export default function SpendingVsSaving() {
                   <YAxis stroke="#94a3b8" />
                   <Tooltip
                     contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                    formatter={(value) => `${getCurrencySymbol(currency)}${Number(value).toFixed(2)}`}
+                    formatter={(value) => `${getCurrencySymbol(currency)} ${Number(value).toFixed(2)}`}
                   />
                   <Legend />
                   <Line
@@ -222,14 +222,14 @@ export default function SpendingVsSaving() {
                           <span className="text-white font-medium">{data.monthLabel}</span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <span className="text-white font-medium">{getCurrencySymbol(currency)}{data.budgetSet.toFixed(2)}</span>
+                          <span className="text-white font-medium">{getCurrencySymbol(currency)} {data.budgetSet.toFixed(2)}</span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <span className="text-orange-400 font-medium">{getCurrencySymbol(currency)}{data.actualSpending.toFixed(2)}</span>
+                          <span className="text-orange-400 font-medium">{getCurrencySymbol(currency)} {data.actualSpending.toFixed(2)}</span>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <span className={`font-bold ${isSavingsPositive ? 'text-green-400' : 'text-red-400'}`}>
-                            {getCurrencySymbol(currency)}{Math.abs(data.savings).toFixed(2)}
+                            {getCurrencySymbol(currency)} {Math.abs(data.savings).toFixed(2)}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -252,22 +252,19 @@ export default function SpendingVsSaving() {
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <p className="text-slate-400 text-sm font-medium uppercase tracking-wide mb-2">Total Budget Set</p>
                 <p className="text-3xl font-bold text-white">
-                  {getCurrencySymbol(currency)}
-                  {monthlyData.reduce((sum, d) => sum + d.budgetSet, 0).toFixed(2)}
+                  {getCurrencySymbol(currency)} {monthlyData.reduce((sum, d) => sum + d.budgetSet, 0).toFixed(2)}
                 </p>
               </div>
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <p className="text-slate-400 text-sm font-medium uppercase tracking-wide mb-2">Total Spending</p>
                 <p className="text-3xl font-bold text-orange-400">
-                  {getCurrencySymbol(currency)}
-                  {monthlyData.reduce((sum, d) => sum + d.actualSpending, 0).toFixed(2)}
+                  {getCurrencySymbol(currency)} {monthlyData.reduce((sum, d) => sum + d.actualSpending, 0).toFixed(2)}
                 </p>
               </div>
               <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
                 <p className="text-slate-400 text-sm font-medium uppercase tracking-wide mb-2">Total Savings</p>
                 <p className="text-3xl font-bold text-green-400">
-                  {getCurrencySymbol(currency)}
-                  {monthlyData.reduce((sum, d) => sum + d.savings, 0).toFixed(2)}
+                  {getCurrencySymbol(currency)} {monthlyData.reduce((sum, d) => sum + d.savings, 0).toFixed(2)}
                 </p>
               </div>
             </div>

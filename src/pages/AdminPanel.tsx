@@ -331,7 +331,7 @@ export default function AdminPanel() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-slate-400 text-xs uppercase tracking-wide">Total Spending</p>
-                    <p className="text-3xl font-bold text-white mt-1">{getCurrencySymbol(currency)}{appStats.total_spending.toFixed(0)}</p>
+                    <p className="text-3xl font-bold text-white mt-1">{getCurrencySymbol(currency)} {appStats.total_spending.toFixed(0)}</p>
                   </div>
                   <TrendingUp className="w-9 h-9 text-orange-500" />
                 </div>

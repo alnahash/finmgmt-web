@@ -489,7 +489,7 @@ export default function Analytics() {
                       <YAxis stroke="#94a3b8" />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                        formatter={(value: number | string) => `${getCurrencySymbol(currency)}${typeof value === 'number' ? value.toFixed(2) : parseFloat(value).toFixed(2)}`}
+                        formatter={(value: number | string) => `${getCurrencySymbol(currency)} ${typeof value === 'number' ? value.toFixed(2) : parseFloat(value).toFixed(2)}`}
                         labelFormatter={(label: string) => `${label}`}
                       />
                       <Line
@@ -523,15 +523,13 @@ export default function Analytics() {
                     <div className="bg-slate-700 rounded-lg p-4">
                       <p className="text-xs text-slate-400 mb-1">Average Spending</p>
                       <p className="text-lg font-semibold text-white">
-                        {getCurrencySymbol(currency)}
-                        {(trendData.reduce((sum, p) => sum + p.amount, 0) / trendData.length).toFixed(2)}
+                        {getCurrencySymbol(currency)} {(trendData.reduce((sum, p) => sum + p.amount, 0) / trendData.length).toFixed(2)}
                       </p>
                     </div>
                     <div className="bg-slate-700 rounded-lg p-4">
                       <p className="text-xs text-slate-400 mb-1">Highest Month</p>
                       <p className="text-lg font-semibold text-white">
-                        {getCurrencySymbol(currency)}
-                        {Math.max(...trendData.map((p) => p.amount)).toFixed(2)}
+                        {getCurrencySymbol(currency)} {Math.max(...trendData.map((p) => p.amount)).toFixed(2)}
                       </p>
                     </div>
                     <div className="bg-slate-700 rounded-lg p-4">
@@ -587,7 +585,7 @@ export default function Analytics() {
                       <YAxis stroke="#94a3b8" />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                        formatter={(value) => `${getCurrencySymbol(currency)}${value}`}
+                        formatter={(value) => `${getCurrencySymbol(currency)} ${value}`}
                       />
                       <Bar dataKey="value" fill="#f97316" radius={[8, 8, 0, 0]}>
                         {pieData.map((_, index) => (
@@ -611,7 +609,7 @@ export default function Analytics() {
                       <YAxis stroke="#94a3b8" />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                        formatter={(value) => `${getCurrencySymbol(currency)}${value}`}
+                        formatter={(value) => `${getCurrencySymbol(currency)} ${value}`}
                       />
                       <Line
                         type="monotone"
@@ -643,7 +641,7 @@ export default function Analytics() {
                           <div>
                             <p className="text-sm font-medium text-white">{cat.categoryName}</p>
                             <p className="text-xs text-slate-400">
-                              {getCurrencySymbol(currency)}{cat.spent.toFixed(2)} / {getCurrencySymbol(currency)}{cat.budgetLimit?.toFixed(2)}
+                              {getCurrencySymbol(currency)} {cat.spent.toFixed(2)} / {getCurrencySymbol(currency)} {cat.budgetLimit?.toFixed(2)}
                             </p>
                           </div>
                         </div>
@@ -702,7 +700,7 @@ export default function Analytics() {
                                 </div>
                               </td>
                               <td className="py-3 px-4 text-right text-sm text-white">
-                                {getCurrencySymbol(currency)}{cat.spent.toFixed(2)}
+                                {getCurrencySymbol(currency)} {cat.spent.toFixed(2)}
                               </td>
                               <td className="py-3 px-4 text-right text-sm text-white">
                                 {cat.percentage.toFixed(1)}%
@@ -762,7 +760,7 @@ export default function Analytics() {
                                   </div>
                                 </td>
                                 <td className="py-3 px-4 text-right text-sm text-white">
-                                  {getCurrencySymbol(currency)}{cat.spent.toFixed(2)}
+                                  {getCurrencySymbol(currency)} {cat.spent.toFixed(2)}
                                 </td>
                                 <td className="py-3 px-4 text-right text-sm text-white">
                                   {cat.percentage.toFixed(1)}%
