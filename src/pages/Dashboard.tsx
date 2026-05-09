@@ -95,16 +95,33 @@ export default function Dashboard() {
           .lte('transaction_date', endDate)
 
         // Get budgets for the period (to calculate total budget)
+        // Period format is "YYYYMM-DD" (e.g., "202504-25" = Apr 25 - May 24)
         const periodParts = selectedPeriod.split('-')
-        const budgetYear = parseInt(periodParts[0], 10)
-        const budgetMonth = parseInt(periodParts[1], 10)
+        const yearMonth = periodParts[0] // "202504"
 
-        const { data: budgets } = await supabase
+        const startYear = parseInt(yearMonth.substring(0, 4), 10) // 2025
+        const startMonth = parseInt(yearMonth.substring(4, 6), 10) // 04
+
+        // Determine end month (period spans two calendar months)
+        const endMonth = startMonth === 12 ? 1 : startMonth + 1
+        const endYear = startMonth === 12 ? startYear + 1 : startYear
+
+        // Fetch budgets for both calendar months that the period spans
+        const { data: budgetsStart } = await supabase
           .from('budgets')
           .select('amount')
           .eq('user_id', user.id)
-          .eq('month', budgetMonth)
-          .eq('year', budgetYear)
+          .eq('month', startMonth)
+          .eq('year', startYear)
+
+        const { data: budgetsEnd } = await supabase
+          .from('budgets')
+          .select('amount')
+          .eq('user_id', user.id)
+          .eq('month', endMonth)
+          .eq('year', endYear)
+
+        const budgets = [...(budgetsStart || []), ...(budgetsEnd || [])]
 
         // Get categories to filter out income
         const { data: categories } = await supabase
