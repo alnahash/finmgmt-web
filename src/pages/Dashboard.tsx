@@ -3,7 +3,7 @@ import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { getPeriodLabel, getPeriodDateRange, getUniquePeriodKeys, getCurrencySymbol } from '../lib/utils'
-import { TrendingDown, DollarSign, Target, Calendar, Percent, Tag } from 'lucide-react'
+import { TrendingDown, DollarSign, Target, Calendar, Percent, Tag, Info } from 'lucide-react'
 
 interface Stats {
   totalSpent: number
@@ -239,6 +239,33 @@ export default function Dashboard() {
             </select>
           </div>
         </div>
+
+        {/* Budget Cycle Info Banner */}
+        {!loading && selectedPeriod && (
+          <div className="bg-gradient-to-br from-blue-900/30 to-blue-900/10 border border-blue-700/50 rounded-lg p-4 mb-8">
+            <div className="flex items-start space-x-3">
+              <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-blue-300 font-medium text-sm mb-1">
+                  All calculations are based on your custom monthly budget cycle
+                </p>
+                <p className="text-blue-200 text-sm">
+                  Your budget cycle: <span className="font-semibold">{(() => {
+                    const { startDate, endDate } = getPeriodDateRange(selectedPeriod)
+                    const start = new Date(startDate)
+                    const end = new Date(endDate)
+                    const startFormatted = `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                    const endFormatted = `${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                    return `${startFormatted} → ${endFormatted}`
+                  })()}</span> (not the calendar month 1-30)
+                </p>
+                <a href="/settings" className="text-blue-300 hover:text-blue-200 text-xs font-medium mt-2 inline-block underline">
+                  Change cycle in Settings
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Budget Progress Bar */}
         {!loading && selectedPeriod && stats.monthlyBudget > 0 && (
