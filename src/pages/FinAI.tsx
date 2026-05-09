@@ -65,6 +65,7 @@ export default function FinAI() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [budgets, setBudgets] = useState<Array<{ category_id: string; amount: number; month: number; year: number }>>([])
   const [dataLoaded, setDataLoaded] = useState(false)
   const [usingGroq, setUsingGroq] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -160,6 +161,14 @@ export default function FinAI() {
         .order('transaction_date', { ascending: false })
 
       if (txData) setTransactions(txData)
+
+      // Fetch budgets (all periods)
+      const { data: budgetData } = await supabase
+        .from('budgets')
+        .select('category_id, amount, month, year')
+        .eq('user_id', user.id)
+
+      if (budgetData) setBudgets(budgetData)
 
       setDataLoaded(true)
     } catch (error) {
@@ -325,16 +334,39 @@ export default function FinAI() {
     const spent = sumAmount(
       getTransactionsInRange(currentPeriod.startDate, currentPeriod.endDate, 'expense')
     )
-    return (profile.monthly_budget || 0) - spent
+
+    // Calculate total budget from budgets table for current period
+    const today = new Date()
+    const currentMonth = today.getMonth() + 1
+    const currentYear = today.getFullYear()
+
+    const totalBudget = budgets
+      .filter(b => b.month === currentMonth && b.year === currentYear)
+      .reduce((sum, b) => sum + b.amount, 0)
+
+    return Math.max(0, totalBudget - spent)
   }
 
   const calculateBudgetUsedPercent = (): number => {
-    if (!profile || !profile.monthly_budget) return 0
+    if (!profile) return 0
     const currentPeriod = getCurrentPeriod()
     const spent = sumAmount(
       getTransactionsInRange(currentPeriod.startDate, currentPeriod.endDate, 'expense')
     )
-    return (spent / profile.monthly_budget) * 100
+
+    // Calculate total budget from budgets table for current period
+    const today = new Date()
+    const currentMonth = today.getMonth() + 1
+    const currentYear = today.getFullYear()
+
+    const totalBudget = budgets
+      .filter(b => b.month === currentMonth && b.year === currentYear)
+      .reduce((sum, b) => sum + b.amount, 0)
+
+    // If no budgets set, return 0
+    if (totalBudget === 0) return 0
+
+    return (spent / totalBudget) * 100
   }
 
   const getTopCategoryThisMonth = (): { category: Category; amount: number } | null => {
