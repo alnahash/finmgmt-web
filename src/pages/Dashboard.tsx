@@ -190,68 +190,6 @@ export default function Dashboard() {
     fetchStats()
   }, [selectedPeriod, user])
 
-  // Fetch current month budget status (for Budget Status card)
-  useEffect(() => {
-    const fetchCurrentMonthBudget = async () => {
-      if (!user) return
-
-      try {
-        const today = new Date()
-        const currentMonth = today.getMonth() + 1
-        const currentYear = today.getFullYear()
-
-        // Get budgets for current calendar month
-        const { data: monthBudgets } = await supabase
-          .from('budgets')
-          .select('amount')
-          .eq('user_id', user.id)
-          .eq('month', currentMonth)
-          .eq('year', currentYear)
-
-        // Get categories to filter out income
-        const { data: categories } = await supabase
-          .from('categories')
-          .select('id, type')
-          .eq('user_id', user.id)
-
-        const categoryTypeMap = new Map(categories?.map((c) => [c.id, c.type]) || [])
-
-        // Get transactions for current calendar month to calculate spending
-        const startOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`
-        const lastDay = new Date(currentYear, currentMonth, 0).getDate()
-        const endOfMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${lastDay}`
-
-        const { data: monthTransactions } = await supabase
-          .from('transactions')
-          .select('amount, category_id')
-          .eq('user_id', user.id)
-          .gte('transaction_date', startOfMonth)
-          .lte('transaction_date', endOfMonth)
-
-        // Calculate spending (excluding income)
-        const monthlySpent = (monthTransactions || []).reduce((sum, t) => {
-          const catType = categoryTypeMap.get(t.category_id)
-          return catType === 'income' ? sum : sum + (t.amount || 0)
-        }, 0)
-
-        // Calculate total budget set
-        const totalBudgetSet = (monthBudgets || []).reduce((sum, b) => sum + b.amount, 0)
-
-        // Store for budget status card
-        setStats((prev) => ({
-          ...prev,
-          monthlyBudget: totalBudgetSet,
-          totalSpent: monthlySpent,
-          budgetRemaining: Math.max(0, totalBudgetSet - monthlySpent)
-        }))
-      } catch (error) {
-        console.error('Error fetching current month budget:', error)
-      }
-    }
-
-    fetchCurrentMonthBudget()
-  }, [user])
-
   // Calculate budget status
   const getBudgetStatus = () => {
     if (stats.monthlyBudget === 0) {
