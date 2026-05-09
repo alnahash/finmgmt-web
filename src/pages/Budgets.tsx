@@ -698,6 +698,8 @@ export default function Budgets() {
       return { percentage, color: 'bg-green-500', textColor: 'text-green-400', label: 'Good' }
     } else if (percentage <= 99) {
       return { percentage, color: 'bg-orange-500', textColor: 'text-orange-400', label: 'Warning' }
+    } else if (percentage <= 100) {
+      return { percentage, color: 'bg-amber-500', textColor: 'text-amber-400', label: 'On Budget' }
     } else {
       return { percentage, color: 'bg-red-500', textColor: 'text-red-400', label: 'Over Budget' }
     }
