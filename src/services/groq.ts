@@ -48,10 +48,15 @@ Focus on:
 - Budget status (on-track, warning, or exceeded)
 - Spending patterns and trends
 - Days remaining in the month and spending pace
-- Specific category advice if relevant
+- SPECIFIC DAILY BUDGET LIMITS if overspending (e.g., "Reduce dining to BHD 10/day" or "Don't spend more than BHD 5/day on this category")
+- Which categories need the most attention (prioritize highest overages)
 - Positive reinforcement if doing well
 
-Be encouraging but honest. If they're overspending, give specific advice.
+Be encouraging but honest. If they're overspending:
+- Calculate the daily limit they need: (overage amount) / (days remaining)
+- Give specific action: "Reduce {category} to {daily_limit}/day for {days_remaining} days to get back on track"
+- Format example: "Your Dining is over by BHD 150. With 15 days left, reduce to BHD 10/day."
+
 Keep response under 150 words. Start with an emoji that matches the sentiment (✓ for good, ⚠ for warning, 💡 for insight).`
 
   const userPrompt = `Monthly Budget Analysis for ${context.monthLabel}:
@@ -137,16 +142,47 @@ export const generateFallbackInsights = (context: BudgetContext): AIInsight => {
 
   // Analyze spending pace
   if (context.budgetStatus === 'exceeded') {
+    const overage = context.totalSpent - context.totalBudget
+
+    // Find which categories are over budget for prioritization
+    const overBudgetCategories = context.categories
+      .filter(cat => cat.status === 'exceeded')
+      .sort((a, b) => (b.actualSpent - b.budgetAmount) - (a.actualSpent - a.budgetAmount))
+
+    let specificRecommendation = ''
+    if (overBudgetCategories.length > 0) {
+      const topCategory = overBudgetCategories[0]
+      const categoryOverage = topCategory.actualSpent - topCategory.budgetAmount
+      specificRecommendation = `Focus on reducing ${topCategory.name} (over by ${context.currency} ${categoryOverage.toFixed(2)}).`
+    }
+
     return {
-      message: `⚠ You've exceeded your budget by ${context.currency} ${(context.totalSpent - context.totalBudget).toFixed(2)}. Consider reducing spending in high-usage categories.`,
+      message: `⚠ You've exceeded your budget by ${context.currency} ${overage.toFixed(2)}. ${specificRecommendation} With ${context.daysRemaining} days left, minimize additional spending.`,
       warning: true,
       confidence: 'high',
     }
   }
 
   if (pace > 1.1) {
+    // Calculate specific daily limit needed
+    const projectedOverage = context.totalSpent * (1 - 1/pace)
+    const dailyReductionNeeded = Math.ceil((projectedOverage / context.daysRemaining) * 100) / 100
+
+    // Find which categories are over budget for prioritization
+    const overBudgetCategories = context.categories
+      .filter(cat => cat.status === 'exceeded')
+      .sort((a, b) => (b.actualSpent - b.budgetAmount) - (a.actualSpent - a.budgetAmount))
+
+    let specificRecommendation = ''
+    if (overBudgetCategories.length > 0) {
+      const topCategory = overBudgetCategories[0]
+      const categoryOverage = topCategory.actualSpent - topCategory.budgetAmount
+      const dailyLimitForCategory = Math.ceil(((topCategory.budgetAmount - categoryOverage) / context.daysRemaining) * 100) / 100
+      specificRecommendation = `Reduce ${topCategory.name} to ${context.currency} ${dailyLimitForCategory}/day.`
+    }
+
     return {
-      message: `💡 Your spending pace suggests you'll exceed your budget by month end. With ${context.daysRemaining} days left, consider reducing discretionary spending.`,
+      message: `⚠ Your spending pace suggests you'll exceed your budget by month end. With ${context.daysRemaining} days left, reduce spending by ~${context.currency} ${dailyReductionNeeded}/day. ${specificRecommendation}`,
       warning: true,
       confidence: 'medium',
     }
