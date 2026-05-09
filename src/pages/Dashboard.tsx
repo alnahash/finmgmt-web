@@ -401,55 +401,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Spending Trend Chart */}
-        {!loading && selectedPeriod && trendData.length > 0 && (
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6 mb-8">
-            <h2 className="text-xl font-bold text-white mb-6">Daily Spending Pattern</h2>
-            <p className="text-slate-400 text-sm mb-4">
-              Your daily spending across the period. <span className="text-blue-400">Blue bars</span> show weekdays, <span className="text-red-400">red bars</span> show weekends. Identify high-spending days to optimize your budget.
-            </p>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis
-                  dataKey="day"
-                  stroke="#94a3b8"
-                  label={{ value: 'Days in Period', position: 'insideBottomRight', offset: -5, fill: '#94a3b8' }}
-                />
-                <YAxis
-                  stroke="#94a3b8"
-                  label={{ value: `${getCurrencySymbol(currency)}`, angle: -90, position: 'insideLeft', fill: '#94a3b8' }}
-                />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
-                  formatter={(value) => `${getCurrencySymbol(currency)} ${Number(value).toFixed(2)}`}
-                  labelFormatter={(label) => `Day ${label}`}
-                  content={({ active, payload }) => {
-                    if (active && payload && payload[0]) {
-                      const data = payload[0].payload
-                      return (
-                        <div className="bg-slate-900 border border-slate-700 rounded p-2 text-sm">
-                          <p className="text-slate-300">Day {data.day}</p>
-                          <p className="text-white font-semibold">Spent: {getCurrencySymbol(currency)} {data.spent.toFixed(2)}</p>
-                          <p className={`text-xs ${data.isWeekend ? 'text-red-400' : 'text-blue-400'}`}>
-                            {data.isWeekend ? 'Weekend' : 'Weekday'}
-                          </p>
-                        </div>
-                      )
-                    }
-                    return null
-                  }}
-                />
-                <Bar dataKey="spent" radius={[4, 4, 0, 0]}>
-                  {trendData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.isWeekend ? '#ef4444' : '#3b82f6'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
         {/* Stats Cards */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
@@ -531,10 +482,54 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Placeholder for more content */}
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-8 text-center">
-          <p className="text-slate-400">More features coming soon...</p>
-        </div>
+        {/* Daily Spending Pattern Chart - Bottom Section */}
+        {!loading && selectedPeriod && trendData.length > 0 && (
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6 mb-8">
+            <h2 className="text-xl font-bold text-white mb-6">Daily Spending Pattern</h2>
+            <p className="text-slate-400 text-sm mb-4">
+              Your daily spending across the period. <span className="text-blue-400">Blue bars</span> show weekdays, <span className="text-red-400">red bars</span> show weekends. Identify high-spending days to optimize your budget.
+            </p>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis
+                  dataKey="day"
+                  stroke="#94a3b8"
+                  label={{ value: 'Days in Period', position: 'insideBottomRight', offset: -5, fill: '#94a3b8' }}
+                />
+                <YAxis
+                  stroke="#94a3b8"
+                  label={{ value: `${getCurrencySymbol(currency)}`, angle: -90, position: 'insideLeft', fill: '#94a3b8' }}
+                />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }}
+                  formatter={(value) => `${getCurrencySymbol(currency)} ${Number(value).toFixed(2)}`}
+                  labelFormatter={(label) => `Day ${label}`}
+                  content={({ active, payload }) => {
+                    if (active && payload && payload[0]) {
+                      const data = payload[0].payload
+                      return (
+                        <div className="bg-slate-900 border border-slate-700 rounded p-2 text-sm">
+                          <p className="text-slate-300">Day {data.day}</p>
+                          <p className="text-white font-semibold">Spent: {getCurrencySymbol(currency)} {data.spent.toFixed(2)}</p>
+                          <p className={`text-xs ${data.isWeekend ? 'text-red-400' : 'text-blue-400'}`}>
+                            {data.isWeekend ? 'Weekend' : 'Weekday'}
+                          </p>
+                        </div>
+                      )
+                    }
+                    return null
+                  }}
+                />
+                <Bar dataKey="spent" radius={[4, 4, 0, 0]}>
+                  {trendData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.isWeekend ? '#ef4444' : '#3b82f6'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
     </Layout>
   )
