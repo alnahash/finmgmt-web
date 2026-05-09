@@ -3,7 +3,7 @@ import { AuthContext } from '../App'
 import Layout from '../components/Layout'
 import { supabase } from '../lib/supabase'
 import { Plus, Trash2, Copy, ChevronDown, ChevronUp } from 'lucide-react'
-import { getCurrencySymbol, getUniquePeriodKeysByType, getPeriodDateRange } from '../lib/utils'
+import { getCurrencySymbol, getUniquePeriodKeysByType, getPeriodDateRange, getPeriodLabel } from '../lib/utils'
 import AIInsightsCard from '../components/AIInsightsCard'
 import RecommendationsCard from '../components/RecommendationsCard'
 import {
@@ -582,7 +582,7 @@ export default function Budgets() {
     const totalBudget = currentMonthBudgets.reduce((sum, b) => sum + b.amount, 0)
 
     const daysRemaining = calculateDaysRemaining()
-    const monthLabel = currentPeriodKey ? `Period ${currentPeriodKey.split('-')[0]}-${currentPeriodKey.split('-')[1]}` : 'Current Period'
+    const monthLabel = currentPeriodKey ? getPeriodLabel(currentPeriodKey) : 'Current Period'
     const percentageUsed = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0
 
     setMonthSummary({
