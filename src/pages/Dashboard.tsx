@@ -7,6 +7,7 @@ import { TrendingDown, DollarSign, Target, Calendar, Percent, Tag, Info } from '
 
 interface Stats {
   totalSpent: number
+  totalIncome: number
   budgetRemaining: number
   transactions: number
   daysTracked: number
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const { user } = useContext(AuthContext)
   const [stats, setStats] = useState<Stats>({
     totalSpent: 0,
+    totalIncome: 0,
     budgetRemaining: 0,
     transactions: 0,
     daysTracked: 0,
@@ -137,10 +139,18 @@ export default function Dashboard() {
           return catType !== 'income'
         })
 
+        // Calculate income separately
+        const incomeTransactions = (allTransactions || []).filter((t) => {
+          const catType = categoryTypeMap.get(t.category_id)
+          return catType === 'income'
+        })
+        const totalIncome = incomeTransactions.reduce((sum, t) => sum + (t.amount || 0), 0)
+
         if (!transactions || transactions.length === 0) {
           const totalBudgetForEmpty = (budgets || []).reduce((sum, b) => sum + (b.amount || 0), 0)
           setStats({
             totalSpent: 0,
+            totalIncome,
             budgetRemaining: Math.max(0, totalBudgetForEmpty),
             transactions: 0,
             daysTracked: 0,
@@ -199,6 +209,7 @@ export default function Dashboard() {
 
         setStats({
           totalSpent,
+          totalIncome,
           budgetRemaining: Math.max(0, totalBudget - totalSpent),
           transactions: transactions.length,
           daysTracked,
@@ -290,10 +301,10 @@ export default function Dashboard() {
         {!loading && selectedPeriod && stats.monthlyBudget > 0 && (
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-lg p-6 mb-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4">
-              <div>
-                <h2 className="text-xl font-bold text-white mb-2">Budget Status</h2>
-                <p className="text-slate-400 text-sm">
-                  Spent {getCurrencySymbol(currency)} {stats.totalSpent.toFixed(2)} of {getCurrencySymbol(currency)} {stats.monthlyBudget.toFixed(2)}
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white mb-3">Budget Status</h2>
+                <p className="text-slate-300 text-sm leading-relaxed">
+                  Your total income this period is <span className="font-semibold text-green-400">{getCurrencySymbol(currency)} {stats.totalIncome.toFixed(2)}</span>, but you set your budget to spend <span className="font-semibold">{getCurrencySymbol(currency)} {stats.monthlyBudget.toFixed(2)}</span>. Currently you are spending <span className="font-semibold text-orange-400">{getCurrencySymbol(currency)} {stats.totalSpent.toFixed(2)}</span> and the remaining is <span className="font-semibold text-primary-400">{getCurrencySymbol(currency)} {stats.budgetRemaining.toFixed(2)}</span>.
                 </p>
               </div>
               <div className="text-right mt-2 md:mt-0">
