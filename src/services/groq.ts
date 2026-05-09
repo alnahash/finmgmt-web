@@ -53,9 +53,9 @@ Focus on:
 - Positive reinforcement if doing well
 
 Be encouraging but honest. If they're overspending:
-- Calculate the daily limit they need: (overage amount) / (days remaining)
-- Give specific action: "Reduce {category} to {daily_limit}/day for {days_remaining} days to get back on track"
-- Format example: "Your Dining is over by BHD 150. With 15 days left, reduce to BHD 10/day."
+- Calculate the daily limit they need: (remaining budget) / (days remaining) where remaining = total budget - total spent
+- Give specific action: "You have BHD X left. To stay on budget over Y days, limit spending to BHD Z/day"
+- Format example: "You have BHD 150 remaining. With 15 days left, limit spending to BHD 10/day to stay on track"
 
 Keep response under 150 words. Start with an emoji that matches the sentiment (✓ for good, ⚠ for warning, 💡 for insight).`
 
@@ -164,9 +164,9 @@ export const generateFallbackInsights = (context: BudgetContext): AIInsight => {
   }
 
   if (pace > 1.1) {
-    // Calculate specific daily limit needed
-    const projectedOverage = context.totalSpent * (1 - 1/pace)
-    const dailyReductionNeeded = Math.ceil((projectedOverage / context.daysRemaining) * 100) / 100
+    // Calculate actual daily spending limit to stay on budget
+    const remainingBudget = context.totalBudget - context.totalSpent
+    const dailyLimit = Math.ceil((remainingBudget / context.daysRemaining) * 100) / 100
 
     // Find which categories are over budget for prioritization
     const overBudgetCategories = context.categories
@@ -178,11 +178,11 @@ export const generateFallbackInsights = (context: BudgetContext): AIInsight => {
       const topCategory = overBudgetCategories[0]
       const categoryOverage = topCategory.actualSpent - topCategory.budgetAmount
       const dailyLimitForCategory = Math.ceil(((topCategory.budgetAmount - categoryOverage) / context.daysRemaining) * 100) / 100
-      specificRecommendation = `Reduce ${topCategory.name} to ${context.currency} ${dailyLimitForCategory}/day.`
+      specificRecommendation = `Focus on reducing ${topCategory.name} to ${context.currency} ${dailyLimitForCategory}/day.`
     }
 
     return {
-      message: `⚠ Your spending pace suggests you'll exceed your budget by month end. With ${context.daysRemaining} days left, reduce spending by ~${context.currency} ${dailyReductionNeeded}/day. ${specificRecommendation}`,
+      message: `⚠ Your spending pace suggests you'll exceed your budget by month end. You have ${context.currency} ${remainingBudget.toFixed(2)} left. To stay on budget over ${context.daysRemaining} days, limit spending to ${context.currency} ${dailyLimit}/day. ${specificRecommendation}`,
       warning: true,
       confidence: 'medium',
     }
