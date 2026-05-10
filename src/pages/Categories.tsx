@@ -770,6 +770,24 @@ export default function Categories() {
           </div>
         )}
 
+        {/* Metric Cards */}
+        {!loading && categories.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <p className="text-slate-400 text-sm font-medium uppercase tracking-wide mb-2">Total Categories</p>
+              <p className="text-3xl font-bold text-white">
+                {categories.filter(c => !c.parent_id).length}
+              </p>
+            </div>
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <p className="text-slate-400 text-sm font-medium uppercase tracking-wide mb-2">Total Sub-Categories</p>
+              <p className="text-3xl font-bold text-primary-500">
+                {categories.filter(c => c.parent_id).length}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Category display */}
         {loading ? (
           <div className="space-y-3">
